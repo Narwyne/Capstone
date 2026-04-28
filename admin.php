@@ -429,8 +429,7 @@ $toast_map = [
       <!-- ADD FORM -->
       <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-5">
         <h3 class="font-bold text-gray-700 mb-3 text-sm">➕ Add New Contact</h3>
-        <form method="POST" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input type="hidden" name="action" value="add_emergency">
+        <form id="addEcForm" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
           <div>
             <label class="block text-xs font-semibold text-gray-500 mb-1">Category <span class="text-red-500">*</span></label>
@@ -468,16 +467,22 @@ $toast_map = [
           </div>
 
           <div class="sm:col-span-2">
-            <button type="submit" class="w-full sm:w-auto bg-red-700 hover:bg-red-800 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm">
-              ➕ Add Contact
+            <button type="submit" id="addEcBtn"
+              class="w-full sm:w-auto bg-red-700 hover:bg-red-800 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm flex items-center gap-2">
+              <span id="addEcBtnText">➕ Add Contact</span>
+              <svg id="addEcSpinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+              </svg>
             </button>
           </div>
         </form>
       </div>
 
       <!-- CONTACTS LIST -->
+      <div id="ecListWrap">
       <?php if (empty($emergency_contacts)): ?>
-      <div class="text-center py-12 text-gray-400">
+      <div id="ecEmptyState" class="text-center py-12 text-gray-400">
         <div class="text-5xl mb-3">📞</div>
         <p class="font-medium">No emergency contacts yet.</p>
         <p class="text-xs mt-1">Use the form above to add your first contact.</p>
@@ -498,11 +503,11 @@ $toast_map = [
               <th class="pb-3">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="ecTableBody">
             <?php foreach ($emergency_contacts as $ec):
               $meta = $ec_categories[$ec['category']] ?? $ec_categories['other'];
             ?>
-            <tr class="ec-row border-b border-gray-50 transition">
+            <tr class="ec-row border-b border-gray-50 transition" id="ec-row-<?= $ec['id'] ?>">
               <td class="py-3 pl-2">
                 <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full <?= $meta['badge'] ?>">
                   <?= $meta['icon'] ?> <?= $meta['label'] ?>
@@ -512,7 +517,7 @@ $toast_map = [
               <td class="py-3 mono text-gray-600 font-semibold"><?= htmlspecialchars($ec['number']) ?></td>
               <td class="py-3 text-gray-400 text-xs"><?= htmlspecialchars($ec['address'] ?? '—') ?></td>
               <td class="py-3 text-gray-400 text-xs"><?= htmlspecialchars($ec['description'] ?? '—') ?></td>
-              <td class="py-3">
+              <td class="py-3" id="ec-status-<?= $ec['id'] ?>">
                 <?php if ($ec['is_active']): ?>
                   <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">● Active</span>
                 <?php else: ?>
@@ -521,18 +526,14 @@ $toast_map = [
               </td>
               <td class="py-3">
                 <div class="flex gap-1">
-                  <form method="POST" class="inline">
-                    <input type="hidden" name="action" value="toggle_emergency">
-                    <input type="hidden" name="id" value="<?= $ec['id'] ?>">
-                    <button type="submit" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition" title="Toggle visibility">
-                      <?= $ec['is_active'] ? '🙈 Hide' : '👁 Show' ?>
-                    </button>
-                  </form>
-                  <form method="POST" class="inline" onsubmit="return confirm('Delete this contact?')">
-                    <input type="hidden" name="action" value="delete_emergency">
-                    <input type="hidden" name="id" value="<?= $ec['id'] ?>">
-                    <button type="submit" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded-lg transition">🗑</button>
-                  </form>
+                  <button onclick="openEditModal(<?= htmlspecialchars(json_encode($ec), ENT_QUOTES) ?>)"
+                    class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 px-2 py-1 rounded-lg transition">✏️ Edit</button>
+                  <button onclick="ajaxToggle(<?= $ec['id'] ?>)" id="toggle-btn-<?= $ec['id'] ?>"
+                    class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition">
+                    <?= $ec['is_active'] ? '🙈 Hide' : '👁 Show' ?>
+                  </button>
+                  <button onclick="ajaxDelete(<?= $ec['id'] ?>, '<?= htmlspecialchars($ec['name'], ENT_QUOTES) ?>')"
+                    class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded-lg transition">🗑</button>
                 </div>
               </td>
             </tr>
@@ -542,11 +543,11 @@ $toast_map = [
       </div>
 
       <!-- Mobile cards -->
-      <div class="md:hidden space-y-3">
+      <div class="md:hidden space-y-3" id="ecCardList">
         <?php foreach ($emergency_contacts as $ec):
           $meta = $ec_categories[$ec['category']] ?? $ec_categories['other'];
         ?>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex" id="ec-card-<?= $ec['id'] ?>">
           <div class="w-1.5 shrink-0 <?= $meta['dot'] ?>"></div>
           <div class="flex-1 p-4">
             <div class="flex items-start justify-between gap-2 mb-1">
@@ -556,44 +557,105 @@ $toast_map = [
                 </span>
                 <p class="font-bold text-gray-800 text-sm"><?= htmlspecialchars($ec['name']) ?></p>
               </div>
-              <?php if ($ec['is_active']): ?>
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700 shrink-0">Active</span>
-              <?php else: ?>
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0">Hidden</span>
-              <?php endif; ?>
+              <span id="ec-card-status-<?= $ec['id'] ?>" class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 <?= $ec['is_active'] ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400' ?>">
+                <?= $ec['is_active'] ? 'Active' : 'Hidden' ?>
+              </span>
             </div>
             <p class="mono text-sm font-bold text-gray-700 mb-1">📞 <?= htmlspecialchars($ec['number']) ?></p>
-            <?php if (!empty($ec['address'])): ?>
-            <p class="text-xs text-gray-400">📍 <?= htmlspecialchars($ec['address']) ?></p>
-            <?php endif; ?>
-            <?php if (!empty($ec['description'])): ?>
-            <p class="text-xs text-gray-400"><?= htmlspecialchars($ec['description']) ?></p>
-            <?php endif; ?>
+            <?php if (!empty($ec['address'])): ?><p class="text-xs text-gray-400">📍 <?= htmlspecialchars($ec['address']) ?></p><?php endif; ?>
+            <?php if (!empty($ec['description'])): ?><p class="text-xs text-gray-400"><?= htmlspecialchars($ec['description']) ?></p><?php endif; ?>
             <div class="flex gap-2 mt-3">
-              <form method="POST" class="flex-1">
-                <input type="hidden" name="action" value="toggle_emergency">
-                <input type="hidden" name="id" value="<?= $ec['id'] ?>">
-                <button type="submit" class="w-full text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 py-2 rounded-lg font-medium transition">
-                  <?= $ec['is_active'] ? '🙈 Hide' : '👁 Show' ?>
-                </button>
-              </form>
-              <form method="POST" class="flex-1" onsubmit="return confirm('Delete this contact?')">
-                <input type="hidden" name="action" value="delete_emergency">
-                <input type="hidden" name="id" value="<?= $ec['id'] ?>">
-                <button type="submit" class="w-full text-xs bg-red-100 hover:bg-red-200 text-red-600 py-2 rounded-lg font-medium transition">🗑 Delete</button>
-              </form>
+              <button onclick="openEditModal(<?= htmlspecialchars(json_encode($ec), ENT_QUOTES) ?>)"
+                class="flex-1 text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 py-2 rounded-lg font-medium transition">✏️ Edit</button>
+              <button onclick="ajaxToggle(<?= $ec['id'] ?>)" id="toggle-btn-mobile-<?= $ec['id'] ?>"
+                class="flex-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 py-2 rounded-lg font-medium transition">
+                <?= $ec['is_active'] ? '🙈 Hide' : '👁 Show' ?>
+              </button>
+              <button onclick="ajaxDelete(<?= $ec['id'] ?>, '<?= htmlspecialchars($ec['name'], ENT_QUOTES) ?>')"
+                class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-3 py-2 rounded-lg font-medium transition">🗑</button>
             </div>
           </div>
         </div>
         <?php endforeach; ?>
       </div>
 
-      <p class="text-xs text-gray-400 mt-3 text-right mono"><?= count($emergency_contacts) ?> contact<?= count($emergency_contacts)!==1?'s':'' ?> total</p>
+      <p class="text-xs text-gray-400 mt-3 text-right mono" id="ecCount">
+        <?= count($emergency_contacts) ?> contact<?= count($emergency_contacts)!==1?'s':'' ?> total
+      </p>
       <?php endif; ?>
+      </div><!-- end ecListWrap -->
+
     </div>
 
   </div><!-- end tabs wrapper -->
 </div><!-- end main -->
+
+<!-- EDIT EMERGENCY CONTACT MODAL -->
+<div id="editEcModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-modal">
+    <div class="bg-amber-500 text-white px-5 py-4 rounded-t-2xl flex justify-between items-center">
+      <h3 class="font-bold text-lg">✏️ Edit Emergency Contact</h3>
+      <button onclick="closeEditModal()" class="text-white hover:text-amber-100 text-2xl leading-none">&times;</button>
+    </div>
+    <form id="editEcForm" class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <input type="hidden" id="edit_id" name="id">
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1">Category <span class="text-red-500">*</span></label>
+        <select id="edit_category" name="category" required
+          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+          <option value="fire">🔥 Fire Department</option>
+          <option value="medical">🚑 Medical / Ambulance</option>
+          <option value="police">👮 Police</option>
+          <option value="campus">🏫 Campus Services</option>
+          <option value="other">📞 Other</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1">Contact Name <span class="text-red-500">*</span></label>
+        <input type="text" id="edit_name" name="ec_name" required
+          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1">Phone Number <span class="text-red-500">*</span></label>
+        <input type="text" id="edit_number" name="number" required
+          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1">Address</label>
+        <input type="text" id="edit_address" name="address"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+      </div>
+
+      <div class="sm:col-span-2">
+        <label class="block text-xs font-semibold text-gray-500 mb-1">Description / Notes</label>
+        <input type="text" id="edit_description" name="ec_description"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+      </div>
+
+      <!-- Error msg -->
+      <div id="editEcError" class="sm:col-span-2 hidden bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-sm"></div>
+
+      <div class="sm:col-span-2 flex gap-3">
+        <button type="submit" id="editEcSaveBtn"
+          class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
+          <span id="editEcSaveText">💾 Save Changes</span>
+          <svg id="editEcSpinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+          </svg>
+        </button>
+        <button type="button" onclick="closeEditModal()"
+          class="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm font-medium transition">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <!-- INCIDENT DETAIL MODAL -->
 <div id="detailModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -609,6 +671,7 @@ $toast_map = [
 <script>
 const ACTIVE_TAB = '<?= $active_tab ?>';
 
+// ── Tab switching ──────────────────────────────────────
 function switchTab(tab) {
   ['incidents','users','emergency'].forEach(t => {
     document.getElementById('panel-'+t).classList.toggle('hidden', t!==tab);
@@ -616,15 +679,314 @@ function switchTab(tab) {
     btn.classList.toggle('active', t===tab);
     btn.classList.toggle('text-gray-500', t!==tab);
   });
-  // Update URL without reload
   const url = new URL(window.location);
   url.searchParams.set('tab', tab);
   history.replaceState(null,'',url);
 }
-
-// Activate correct tab on load
 switchTab(ACTIVE_TAB);
 
+// ── Toast helper ──────────────────────────────────────
+function showToast(msg, color='bg-green-600') {
+  document.getElementById('toast')?.remove();
+  const t = document.createElement('div');
+  t.id = 'toast';
+  t.className = 'fixed top-4 right-4 z-50 animate-slide';
+  t.innerHTML = `<div class="${color} text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-2 text-sm font-medium">${msg}</div>`;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// ── EC category meta (for DOM rebuild) ────────────────
+const EC_META = {
+  fire:    {label:'Fire Department',    icon:'🔥', badge:'bg-red-100 text-red-700',       dot:'bg-red-500'},
+  medical: {label:'Medical / Ambulance',icon:'🚑', badge:'bg-emerald-100 text-emerald-700',dot:'bg-emerald-500'},
+  police:  {label:'Police',             icon:'👮', badge:'bg-blue-100 text-blue-700',      dot:'bg-blue-500'},
+  campus:  {label:'Campus Services',    icon:'🏫', badge:'bg-amber-100 text-amber-700',    dot:'bg-amber-500'},
+  other:   {label:'Other',              icon:'📞', badge:'bg-gray-100 text-gray-600',      dot:'bg-gray-400'},
+};
+
+// ── AJAX: Toggle hide/show ─────────────────────────────
+async function ajaxToggle(id) {
+  const btn    = document.getElementById('toggle-btn-'+id);
+  const btnMob = document.getElementById('toggle-btn-mobile-'+id);
+  if (btn) btn.disabled = true;
+  if (btnMob) btnMob.disabled = true;
+
+  try {
+    const fd = new FormData();
+    fd.append('action','toggle_emergency');
+    fd.append('id', id);
+    const res  = await fetch('ec_ajax.php', {method:'POST', body:fd});
+    const data = await res.json();
+
+    if (data.success) {
+      const active = data.is_active;
+
+      // Update status badge — desktop
+      const statusCell = document.getElementById('ec-status-'+id);
+      if (statusCell) {
+        statusCell.innerHTML = active
+          ? `<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">● Active</span>`
+          : `<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">● Hidden</span>`;
+      }
+
+      // Update status badge — mobile
+      const cardStatus = document.getElementById('ec-card-status-'+id);
+      if (cardStatus) {
+        cardStatus.className = `text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`;
+        cardStatus.textContent = active ? 'Active' : 'Hidden';
+      }
+
+      // Update toggle button labels
+      const label = active ? '🙈 Hide' : '👁 Show';
+      if (btn)    btn.textContent    = label;
+      if (btnMob) btnMob.textContent = label;
+
+      showToast(active ? '👁 Contact is now visible' : '🙈 Contact hidden', active ? 'bg-green-600' : 'bg-gray-700');
+    } else {
+      showToast('⚠️ Failed to update', 'bg-red-600');
+    }
+  } catch(e) {
+    showToast('⚠️ Network error', 'bg-red-600');
+  }
+
+  if (btn)    btn.disabled = false;
+  if (btnMob) btnMob.disabled = false;
+}
+
+// ── AJAX: Delete ──────────────────────────────────────
+async function ajaxDelete(id, name) {
+  if (!confirm(`Delete "${name}"?`)) return;
+
+  try {
+    const fd = new FormData();
+    fd.append('action','delete_emergency');
+    fd.append('id', id);
+    const res  = await fetch('ec_ajax.php', {method:'POST', body:fd});
+    const data = await res.json();
+
+    if (data.success) {
+      // Remove row + mobile card with fade
+      ['ec-row-'+id, 'ec-card-'+id].forEach(eid => {
+        const el = document.getElementById(eid);
+        if (el) { el.style.transition='opacity 0.3s'; el.style.opacity='0'; setTimeout(()=>el.remove(), 300); }
+      });
+      showToast('🗑 Contact deleted', 'bg-gray-700');
+      // Update count
+      setTimeout(updateCount, 350);
+    } else {
+      showToast('⚠️ Failed to delete', 'bg-red-600');
+    }
+  } catch(e) {
+    showToast('⚠️ Network error', 'bg-red-600');
+  }
+}
+
+function updateCount() {
+  const rows = document.querySelectorAll('#ecTableBody tr, #ecCardList > div');
+  const c = document.getElementById('ecCount');
+  if (c) { const n=rows.length; c.textContent=`${n} contact${n!==1?'s':''} total`; }
+}
+
+// ── AJAX: Add new contact ─────────────────────────────
+document.getElementById('addEcForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('addEcBtn');
+  const spinner = document.getElementById('addEcSpinner');
+  const btnText = document.getElementById('addEcBtnText');
+  btn.disabled = true; spinner.classList.remove('hidden'); btnText.textContent = 'Adding...';
+
+  try {
+    const fd = new FormData(this);
+    fd.append('action','add_emergency');
+    const res  = await fetch('ec_ajax.php', {method:'POST', body:fd});
+    const data = await res.json();
+
+    if (data.success && data.contact) {
+      appendNewContact(data.contact);
+      this.reset();
+      showToast('✅ Contact added successfully');
+      updateCount();
+    } else {
+      showToast('⚠️ ' + (data.message||'Failed to add'), 'bg-red-600');
+    }
+  } catch(e) {
+    showToast('⚠️ Network error', 'bg-red-600');
+  }
+
+  btn.disabled = false; spinner.classList.add('hidden'); btnText.textContent = '➕ Add Contact';
+});
+
+function appendNewContact(ec) {
+  const meta = EC_META[ec.category] || EC_META.other;
+  const isActive = ec.is_active == 1;
+
+  // Hide empty state if showing
+  document.getElementById('ecEmptyState')?.remove();
+
+  // Desktop row
+  const tbody = document.getElementById('ecTableBody');
+  if (tbody) {
+    const tr = document.createElement('tr');
+    tr.className = 'ec-row border-b border-gray-50 transition';
+    tr.id = 'ec-row-'+ec.id;
+    tr.innerHTML = `
+      <td class="py-3 pl-2"><span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${meta.badge}">${meta.icon} ${meta.label}</span></td>
+      <td class="py-3 font-medium text-gray-700">${escHtml(ec.name)}</td>
+      <td class="py-3 mono text-gray-600 font-semibold">${escHtml(ec.number)}</td>
+      <td class="py-3 text-gray-400 text-xs">${escHtml(ec.address||'—')}</td>
+      <td class="py-3 text-gray-400 text-xs">${escHtml(ec.description||'—')}</td>
+      <td class="py-3" id="ec-status-${ec.id}">
+        <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${isActive?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}">
+          ${isActive?'● Active':'● Hidden'}
+        </span>
+      </td>
+      <td class="py-3">
+        <div class="flex gap-1">
+          <button onclick="openEditModal(${escAttr(JSON.stringify(ec))})" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 px-2 py-1 rounded-lg transition">✏️ Edit</button>
+          <button onclick="ajaxToggle(${ec.id})" id="toggle-btn-${ec.id}" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition">${isActive?'🙈 Hide':'👁 Show'}</button>
+          <button onclick="ajaxDelete(${ec.id},'${escHtml(ec.name)}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded-lg transition">🗑</button>
+        </div>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+
+  // Mobile card
+  const cardList = document.getElementById('ecCardList');
+  if (cardList) {
+    const div = document.createElement('div');
+    div.className = 'bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex';
+    div.id = 'ec-card-'+ec.id;
+    div.innerHTML = `
+      <div class="w-1.5 shrink-0 ${meta.dot}"></div>
+      <div class="flex-1 p-4">
+        <div class="flex items-start justify-between gap-2 mb-1">
+          <div>
+            <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${meta.badge} mb-1">${meta.icon} ${meta.label}</span>
+            <p class="font-bold text-gray-800 text-sm">${escHtml(ec.name)}</p>
+          </div>
+          <span id="ec-card-status-${ec.id}" class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${isActive?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}">${isActive?'Active':'Hidden'}</span>
+        </div>
+        <p class="mono text-sm font-bold text-gray-700 mb-1">📞 ${escHtml(ec.number)}</p>
+        ${ec.address ? `<p class="text-xs text-gray-400">📍 ${escHtml(ec.address)}</p>` : ''}
+        ${ec.description ? `<p class="text-xs text-gray-400">${escHtml(ec.description)}</p>` : ''}
+        <div class="flex gap-2 mt-3">
+          <button onclick="openEditModal(${escAttr(JSON.stringify(ec))})" class="flex-1 text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 py-2 rounded-lg font-medium transition">✏️ Edit</button>
+          <button onclick="ajaxToggle(${ec.id})" id="toggle-btn-mobile-${ec.id}" class="flex-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 py-2 rounded-lg font-medium transition">${isActive?'🙈 Hide':'👁 Show'}</button>
+          <button onclick="ajaxDelete(${ec.id},'${escHtml(ec.name)}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-3 py-2 rounded-lg font-medium transition">🗑</button>
+        </div>
+      </div>`;
+    cardList.appendChild(div);
+  }
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+}
+
+// ── Edit Modal ────────────────────────────────────────
+function openEditModal(ec) {
+  document.getElementById('edit_id').value          = ec.id;
+  document.getElementById('edit_category').value    = ec.category;
+  document.getElementById('edit_name').value        = ec.name;
+  document.getElementById('edit_number').value      = ec.number;
+  document.getElementById('edit_address').value     = ec.address || '';
+  document.getElementById('edit_description').value = ec.description || '';
+  document.getElementById('editEcError').classList.add('hidden');
+  document.getElementById('editEcSaveText').textContent = '💾 Save Changes';
+  document.getElementById('editEcSpinner').classList.add('hidden');
+  document.getElementById('editEcSaveBtn').disabled = false;
+  const m = document.getElementById('editEcModal');
+  m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closeEditModal() {
+  const m = document.getElementById('editEcModal');
+  m.classList.add('hidden'); m.classList.remove('flex');
+}
+document.getElementById('editEcModal').addEventListener('click', function(e){ if(e.target===this) closeEditModal(); });
+
+// ── AJAX: Save edit ───────────────────────────────────
+document.getElementById('editEcForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn     = document.getElementById('editEcSaveBtn');
+  const spinner = document.getElementById('editEcSpinner');
+  const btnText = document.getElementById('editEcSaveText');
+  const errDiv  = document.getElementById('editEcError');
+  btn.disabled = true; spinner.classList.remove('hidden'); btnText.textContent = 'Saving...';
+  errDiv.classList.add('hidden');
+
+  try {
+    const fd = new FormData(this);
+    fd.append('action','edit_emergency');
+    const res  = await fetch('ec_ajax.php', {method:'POST', body:fd});
+    const data = await res.json();
+
+    if (data.success && data.contact) {
+      updateContactInDOM(data.contact);
+      closeEditModal();
+      showToast('✅ Contact updated successfully');
+    } else {
+      errDiv.textContent = data.message || 'Failed to save changes.';
+      errDiv.classList.remove('hidden');
+      btn.disabled = false; spinner.classList.add('hidden'); btnText.textContent = '💾 Save Changes';
+    }
+  } catch(err) {
+    errDiv.textContent = 'Network error. Please try again.';
+    errDiv.classList.remove('hidden');
+    btn.disabled = false; spinner.classList.add('hidden'); btnText.textContent = '💾 Save Changes';
+  }
+});
+
+function updateContactInDOM(ec) {
+  const meta = EC_META[ec.category] || EC_META.other;
+  const isActive = ec.is_active == 1;
+
+  // Desktop row cells (re-render inner TDs)
+  const row = document.getElementById('ec-row-'+ec.id);
+  if (row) {
+    const tds = row.querySelectorAll('td');
+    if (tds[0]) tds[0].innerHTML = `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${meta.badge}">${meta.icon} ${meta.label}</span>`;
+    if (tds[1]) tds[1].textContent = ec.name;
+    if (tds[2]) tds[2].textContent = ec.number;
+    if (tds[3]) tds[3].textContent = ec.address || '—';
+    if (tds[4]) tds[4].textContent = ec.description || '—';
+    // Update edit button data
+    const editBtn = row.querySelector('button[onclick^="openEditModal"]');
+    if (editBtn) editBtn.setAttribute('onclick', `openEditModal(${escAttr(JSON.stringify(ec))})`);
+  }
+
+  // Mobile card — rebuild inner content
+  const card = document.getElementById('ec-card-'+ec.id);
+  if (card) {
+    const inner = card.querySelector('.flex-1');
+    if (inner) {
+      inner.innerHTML = `
+        <div class="flex items-start justify-between gap-2 mb-1">
+          <div>
+            <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${meta.badge} mb-1">${meta.icon} ${meta.label}</span>
+            <p class="font-bold text-gray-800 text-sm">${escHtml(ec.name)}</p>
+          </div>
+          <span id="ec-card-status-${ec.id}" class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${isActive?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}">${isActive?'Active':'Hidden'}</span>
+        </div>
+        <p class="mono text-sm font-bold text-gray-700 mb-1">📞 ${escHtml(ec.number)}</p>
+        ${ec.address ? `<p class="text-xs text-gray-400">📍 ${escHtml(ec.address)}</p>` : ''}
+        ${ec.description ? `<p class="text-xs text-gray-400">${escHtml(ec.description)}</p>` : ''}
+        <div class="flex gap-2 mt-3">
+          <button onclick="openEditModal(${escAttr(JSON.stringify(ec))})" class="flex-1 text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 py-2 rounded-lg font-medium transition">✏️ Edit</button>
+          <button onclick="ajaxToggle(${ec.id})" id="toggle-btn-mobile-${ec.id}" class="flex-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 py-2 rounded-lg font-medium transition">${isActive?'🙈 Hide':'👁 Show'}</button>
+          <button onclick="ajaxDelete(${ec.id},'${escHtml(ec.name)}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-3 py-2 rounded-lg font-medium transition">🗑</button>
+        </div>`;
+      // Also update the color dot
+      const dot = card.querySelector('.w-1\\.5');
+      if (dot) dot.className = `w-1.5 shrink-0 ${meta.dot}`;
+    }
+  }
+}
+
+// ── Incident filters ──────────────────────────────────
 function filterIncidents() {
   const q   = document.getElementById('incidentSearch').value.toLowerCase();
   const sev = document.getElementById('severityFilter').value;
@@ -639,22 +1001,20 @@ function filterIncidents() {
   const c = document.getElementById('incidentCount');
   if(c) c.textContent=`Showing ${visible} incident${visible!==1?'s':''}`;
 }
-
 function matchEl(el,q,sev,sta) {
   if(q && !['type','location','reporter'].some(k=>(el.dataset[k]||'').toLowerCase().includes(q))) return false;
   if(sev && (el.dataset.severity||'')!==sev) return false;
   if(sta && (el.dataset.status||'')!==sta) return false;
   return true;
 }
-
 function filterUsers() {
   const q = document.getElementById('userSearch').value.toLowerCase();
   document.querySelectorAll('#userTbody tr, #userCards > div').forEach(el => {
-    const match = !q||['name','email','role'].some(k=>(el.dataset[k]||'').toLowerCase().includes(q));
-    el.style.display=match?'':'none';
+    el.style.display = (!q||['name','email','role'].some(k=>(el.dataset[k]||'').toLowerCase().includes(q)))?'':'none';
   });
 }
 
+// ── Incident detail modal ─────────────────────────────
 function showDetail(inc) {
   const sev={low:'🟢',medium:'🟡',high:'🔴',critical:'🚨'};
   const sta={open:'🔴 Open',in_progress:'🔵 In Progress',resolved:'✅ Resolved'};
