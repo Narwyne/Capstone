@@ -2,7 +2,7 @@
 $error = "";
 
 session_start();
-include "db.php";
+include "includes/otherDB.php";
 
 if (isset($_SESSION['user'])) {
     if ($_SESSION['role'] === 'admin') {

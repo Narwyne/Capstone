@@ -10,123 +10,15 @@ if (!isset($_SESSION['user']) || $_SESSION['role'] != 'admin') {
     exit();
 }
 
-$host   = 'localhost';
-$dbname = 'campus_system';
-$dbuser = 'root';
-$dbpass = '';
+require_once 'includes/db.php';
+require_once 'includes/admin_helpers.php';
+require_once 'includes/admin_actions.php';  // handles POST + redirects
+require_once 'includes/admin_queries.php';  // populates $stats, $users, $incidents, $emergency_contacts
 
-$pdo = null;
-$db_error = null;
-
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $dbuser, $dbpass, [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
-} catch (PDOException $e) {
-    $db_error = $e->getMessage();
-}
-
-// ── POST handlers ─────────────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
-    $action = $_POST['action'] ?? '';
-
-    if ($action === 'resolve_incident' && isset($_POST['id'])) {
-        $s = $pdo->prepare("UPDATE incidents SET status='resolved' WHERE id=?");
-        $s->execute([(int)$_POST['id']]);
-        header("Location: admin.php?toast=resolved"); exit();
-    }
-    if ($action === 'delete_incident' && isset($_POST['id'])) {
-        $s = $pdo->prepare("DELETE FROM incidents WHERE id=?");
-        $s->execute([(int)$_POST['id']]);
-        header("Location: admin.php?toast=deleted"); exit();
-    }
-    if ($action === 'delete_user' && isset($_POST['id'])) {
-        if ($_POST['id'] != ($_SESSION['user_id'] ?? -1)) {
-            $s = $pdo->prepare("DELETE FROM users WHERE id=?");
-            $s->execute([(int)$_POST['id']]);
-        }
-        header("Location: admin.php?toast=user_deleted"); exit();
-    }
-
-    // Emergency contacts
-    if ($action === 'add_emergency') {
-        $s = $pdo->prepare("INSERT INTO emergency_services (category,name,number,address,description,is_active,sort_order) VALUES (?,?,?,?,?,1,0)");
-        $s->execute([
-            $_POST['category']       ?? 'other',
-            trim($_POST['ec_name']        ?? ''),
-            trim($_POST['number']         ?? ''),
-            trim($_POST['address']        ?? ''),
-            trim($_POST['ec_description'] ?? ''),
-        ]);
-        header("Location: admin.php?tab=emergency&toast=ec_added"); exit();
-    }
-    if ($action === 'delete_emergency' && isset($_POST['id'])) {
-        $s = $pdo->prepare("DELETE FROM emergency_services WHERE id=?");
-        $s->execute([(int)$_POST['id']]);
-        header("Location: admin.php?tab=emergency&toast=ec_deleted"); exit();
-    }
-    if ($action === 'toggle_emergency' && isset($_POST['id'])) {
-        $s = $pdo->prepare("UPDATE emergency_services SET is_active = NOT is_active WHERE id=?");
-        $s->execute([(int)$_POST['id']]);
-        header("Location: admin.php?tab=emergency&toast=ec_updated"); exit();
-    }
-}
-
-// ── Fetch stats ───────────────────────────────────────────────────
-$stats = ['users'=>0,'total_reports'=>0,'resolved'=>0,'high_risk'=>0];
-if ($pdo) {
-    $stats['users']         = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
-    $stats['total_reports'] = $pdo->query("SELECT COUNT(*) FROM incidents")->fetchColumn();
-    $stats['resolved']      = $pdo->query("SELECT COUNT(*) FROM incidents WHERE status='resolved'")->fetchColumn();
-    $stats['high_risk']     = $pdo->query("SELECT COUNT(*) FROM incidents WHERE severity IN ('high','critical') AND status='open'")->fetchColumn();
-}
-
-// ── Fetch data ────────────────────────────────────────────────────
-$users = $pdo ? $pdo->query("SELECT id,name,email,role,created_at FROM users ORDER BY id DESC")->fetchAll() : [];
-
-$incidents = $pdo ? $pdo->query("SELECT id,incident_type,severity,location,description,reported_by,status,photo_path,reported_at FROM incidents ORDER BY reported_at DESC")->fetchAll() : [];
-
-$emergency_contacts = [];
-if ($pdo) {
-    try { $emergency_contacts = $pdo->query("SELECT * FROM emergency_services ORDER BY category,sort_order,id")->fetchAll(); }
-    catch (PDOException $e) {}
-}
-
-// ── Helpers ───────────────────────────────────────────────────────
-function severityBadge($s) {
-    $map = ['low'=>['bg-emerald-100 text-emerald-700','🟢 Low'],'medium'=>['bg-amber-100 text-amber-700','🟡 Medium'],'high'=>['bg-orange-100 text-orange-700','🔴 High'],'critical'=>['bg-red-100 text-red-700','🚨 Critical']];
-    [$cls,$label] = $map[$s] ?? ['bg-gray-100 text-gray-600',$s];
-    return "<span class='inline-block text-xs font-semibold px-2 py-0.5 rounded-full $cls'>$label</span>";
-}
-function statusBadge($s) {
-    $map = ['open'=>['bg-red-100 text-red-600','Open'],'in_progress'=>['bg-blue-100 text-blue-600','In Progress'],'resolved'=>['bg-green-100 text-green-600','Resolved']];
-    [$cls,$label] = $map[$s] ?? ['bg-gray-100 text-gray-600',$s];
-    return "<span class='inline-block text-xs font-semibold px-2 py-0.5 rounded-full $cls'>$label</span>";
-}
-function typeIcon($t) {
-    return ['fire'=>'🔥','medical'=>'🏥','accident'=>'⚠️','suspicious'=>'👁️','theft'=>'🔓','flooding'=>'🌊','earthquake'=>'🌍','other'=>'📋'][$t] ?? '📋';
-}
-
-$ec_categories = [
-    'fire'    => ['label'=>'Fire Department',    'icon'=>'🔥','badge'=>'bg-red-100 text-red-700',      'dot'=>'bg-red-500'],
-    'medical' => ['label'=>'Medical / Ambulance','icon'=>'🚑','badge'=>'bg-emerald-100 text-emerald-700','dot'=>'bg-emerald-500'],
-    'police'  => ['label'=>'Police',             'icon'=>'👮','badge'=>'bg-blue-100 text-blue-700',     'dot'=>'bg-blue-500'],
-    'campus'  => ['label'=>'Campus Services',    'icon'=>'🏫','badge'=>'bg-amber-100 text-amber-700',   'dot'=>'bg-amber-500'],
-    'other'   => ['label'=>'Other',              'icon'=>'📞','badge'=>'bg-gray-100 text-gray-600',     'dot'=>'bg-gray-400'],
-];
-
-$active_tab = $_GET['tab'] ?? 'incidents';
-$toast      = $_GET['toast'] ?? '';
-
-$toast_map = [
-    'resolved'   =>['✅','Incident marked as resolved','bg-green-600'],
-    'deleted'    =>['🗑️','Incident deleted','bg-gray-700'],
-    'user_deleted'=>['🗑️','User deleted','bg-gray-700'],
-    'ec_added'   =>['✅','Emergency contact added','bg-green-600'],
-    'ec_deleted' =>['🗑️','Contact deleted','bg-gray-700'],
-    'ec_updated' =>['🔄','Contact updated','bg-blue-600'],
-];
+$ec_categories = getEcCategories();
+$toast_map     = getToastMap();
+$active_tab    = $_GET['tab']   ?? 'incidents';
+$toast         = $_GET['toast'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -135,6 +27,7 @@ $toast_map = [
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Panel — ACLC Smart Campus</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="backpageScript.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>

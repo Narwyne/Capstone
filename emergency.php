@@ -130,28 +130,30 @@ $categoryMeta = [
 <div class="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
   <!-- SOS BANNER -->
-  <div class="anim bg-red-700 rounded-2xl p-6 text-white text-center shadow-xl relative overflow-hidden"
-       style="animation-delay:0.05s">
+
+  <!-- <div class="anim bg-red-700 rounded-2xl p-6 text-white text-center shadow-xl relative overflow-hidden"
+       style="animation-delay:0.05s"> -->
     <!-- decorative circles -->
-    <div class="absolute -top-8 -right-8 w-36 h-36 bg-red-600 rounded-full opacity-40"></div>
+    <!-- <div class="absolute -top-8 -right-8 w-36 h-36 bg-red-600 rounded-full opacity-40"></div>
     <div class="absolute -bottom-6 -left-6 w-24 h-24 bg-red-800 rounded-full opacity-40"></div>
 
     <div class="relative z-10">
+
       <p class="text-red-200 text-xs uppercase tracking-widest mb-1">In immediate danger?</p>
-      <h2 class="text-2xl font-bold mb-4">Call National Emergency</h2>
+      <h2 class="text-2xl font-bold mb-4">Call National Emergency</h2> -->
 
       <!-- Big 911 button -->
-      <div class="relative inline-block">
+
+      <!-- <div class="relative inline-block">
         <div class="sos-ring absolute inset-0 rounded-full z-0"></div>
         <a href="tel:911"
            class="relative z-10 inline-flex items-center gap-3 bg-white text-red-700 font-black text-2xl px-10 py-4 rounded-full shadow-2xl hover:bg-red-50 transition">
           📞 <span>911</span>
         </a>
       </div>
-
       <p class="text-red-200 text-xs mt-4">National Emergency Hotline · Dispatches police, fire & ambulance</p>
     </div>
-  </div>
+  </div> -->
 
   <!-- DISCLAIMER -->
   <div class="anim bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 flex gap-3 items-start text-sm text-amber-800"
