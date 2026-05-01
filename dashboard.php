@@ -191,11 +191,12 @@ function timeAgo($datetime) {
       <span class="font-bold text-sm leading-tight">Report Incident</span>
     </button>
 
-    <button
+    <!-- ✅ FUNCTIONAL -->
+    <a href="incidents.php"
       class="action-btn bg-white text-gray-700 rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col items-start gap-2">
       <span class="text-2xl">📍</span>
       <span class="font-semibold text-sm leading-tight">View Incidents</span>
-    </button>
+    </a>
 
     <a href="emergency.php"
       class="action-btn bg-red-800 text-white rounded-2xl p-5 shadow-md flex flex-col items-start gap-2 no-underline">
@@ -295,9 +296,9 @@ function timeAgo($datetime) {
 
     <?php if (!empty($recent_incidents)): ?>
     <div class="px-5 py-3 bg-gray-50 text-center">
-      <button class="text-xs font-semibold text-red-600 hover:text-red-700 transition">
+      <a href="incidents.php" class="text-xs font-semibold text-red-600 hover:text-red-700 transition">
         View all incidents →
-      </button>
+      </a>
     </div>
     <?php endif; ?>
 
