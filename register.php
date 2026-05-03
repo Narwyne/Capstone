@@ -5,7 +5,6 @@ include "includes/otherDB.php";
 $success = "";
 $error = "";
 
-//  Prevent logged-in users from accessing register
 if (isset($_SESSION['user'])) {
     header("Location: dashboard.php");
     exit();
@@ -13,16 +12,20 @@ if (isset($_SESSION['user'])) {
 
 if (isset($_POST['register'])) {
 
-    $name = trim($_POST['name']);
+    $first = trim($_POST['first_name']);
+    $middle = trim($_POST['middle_name']);
+    $last = trim($_POST['last_name']);
     $email = trim($_POST['email']);
     $password_input = $_POST['password'];
 
-    //  Password validation
+    // Combine name
+    $name = $first . ' ' . ($middle ? $middle . ' ' : '') . $last;
+
+    // Password validation
     if (strlen($password_input) < 6) {
         $error = "Password too short! Must be at least 6 characters.";
     } else {
 
-        //  Check if email already exists
         $check = $conn->prepare("SELECT id FROM users WHERE email=?");
         $check->bind_param("s", $email);
         $check->execute();
@@ -32,10 +35,8 @@ if (isset($_POST['register'])) {
             $error = "Email already registered!";
         } else {
 
-            //  Hash password
             $password = password_hash($password_input, PASSWORD_DEFAULT);
 
-            //  Insert user
             $stmt = $conn->prepare("INSERT INTO users (name, email, password) VALUES (?, ?, ?)");
             $stmt->bind_param("sss", $name, $email, $password);
 
@@ -64,7 +65,6 @@ if (isset($_POST['register'])) {
   animation: scale 0.2s ease;
 }
 </style>
-
 </head>
 
 <body class="bg-gray-100 flex items-center justify-center h-screen">
@@ -72,7 +72,13 @@ if (isset($_POST['register'])) {
 <form method="POST" class="bg-white p-6 rounded shadow w-80">
     <h2 class="text-xl font-bold mb-4 text-center text-red-600">Register</h2>
 
-    <input type="text" name="name" placeholder="Full Name" required
+    <input type="text" name="first_name" placeholder="First Name" required
+    class="w-full mb-3 p-2 border rounded">
+
+    <input type="text" name="middle_name" placeholder="Middle Name (optional)"
+    class="w-full mb-3 p-2 border rounded">
+
+    <input type="text" name="last_name" placeholder="Last Name" required
     class="w-full mb-3 p-2 border rounded">
 
     <input type="email" name="email" placeholder="Email" required
@@ -93,7 +99,7 @@ if (isset($_POST['register'])) {
     </p>
 </form>
 
-<!--  ERROR MODAL -->
+<!-- ERROR -->
 <?php if (!empty($error)): ?>
 <div class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
     <div class="bg-white p-6 rounded-xl shadow w-80 text-center animate-scale">
@@ -107,7 +113,7 @@ if (isset($_POST['register'])) {
 </div>
 <?php endif; ?>
 
-<!--  SUCCESS MODAL -->
+<!-- SUCCESS -->
 <?php if (!empty($success)): ?>
 <div class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
     <div class="bg-white p-6 rounded-xl shadow w-80 text-center animate-scale">

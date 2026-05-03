@@ -13,14 +13,17 @@ if (isset($_SESSION['user'])) {
     exit();
 }
 
-//  Generate CSRF token
+// Generate CSRF token
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// Remembered email
+$email_value = isset($_COOKIE['user_email']) ? $_COOKIE['user_email'] : '';
+
 if (isset($_POST['login'])) {
 
-    //  CSRF VALIDATION
+    // CSRF VALIDATION
     if (!isset($_POST['csrf_token']) || 
         !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         die("Invalid CSRF token");
@@ -29,7 +32,6 @@ if (isset($_POST['login'])) {
     $email = trim($_POST['email']);
     $password = $_POST['password'];
 
-    // Prepared statement
     $stmt = $conn->prepare("SELECT * FROM users WHERE email=? LIMIT 1");
     $stmt->bind_param("s", $email);
     $stmt->execute();
@@ -40,13 +42,19 @@ if (isset($_POST['login'])) {
 
         if (password_verify($password, $user['password'])) {
 
-            // ✅ Prevent session hijacking
             session_regenerate_id(true);
 
-            $_SESSION['user'] = $user['name'];
+            // Show first name only
+            $_SESSION['user'] = explode(' ', $user['name'])[0];
             $_SESSION['role'] = $user['role'];
 
-            // ✅ Redirect
+            // REMEMBER ME
+            if (isset($_POST['remember'])) {
+                setcookie("user_email", $email, time() + (86400 * 30), "/");
+            } else {
+                setcookie("user_email", "", time() - 3600, "/");
+            }
+
             if ($user['role'] === 'admin') {
                 header("Location: admin.php");
             } else {
@@ -76,10 +84,20 @@ if (isset($_POST['login'])) {
 <form method="POST" class="bg-white p-6 rounded shadow w-80">
     <h2 class="text-xl font-bold mb-4 text-center text-red-600">Login</h2>
 
-    <input type="email" name="email" placeholder="Email" required class="w-full mb-3 p-2 border rounded">
-    <input type="password" name="password" placeholder="Password" required class="w-full mb-3 p-2 border rounded">
+    <input type="email" name="email" placeholder="Email"
+    value="<?php echo htmlspecialchars($email_value); ?>"
+    required class="w-full mb-3 p-2 border rounded">
 
-    <!-- ✅ CSRF TOKEN -->
+    <input type="password" name="password" placeholder="Password"
+    required class="w-full mb-3 p-2 border rounded">
+
+    <!-- Remember Me -->
+    <label class="flex items-center gap-2 text-sm mb-3">
+        <input type="checkbox" name="remember">
+        Remember Me
+    </label>
+
+    <!-- CSRF -->
     <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
 
     <button name="login" class="w-full bg-red-600 text-white p-2 rounded">Login</button>
@@ -89,25 +107,19 @@ if (isset($_POST['login'])) {
     </p>
 </form>
 
-
-
 <!-- ERROR MODAL -->
 <?php if (!empty($error)): ?>
 <div id="errorModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
     <div class="bg-white p-6 rounded-xl shadow w-80 text-center">
         <h2 class="text-lg font-bold text-red-600 mb-3">Login Error</h2>
         <p class="mb-4"><?php echo $error; ?></p>
-        <button onclick="closeModal()" class="bg-red-600 text-white px-4 py-2 rounded">
+        <button onclick="document.getElementById('errorModal').remove()" 
+        class="bg-red-600 text-white px-4 py-2 rounded">
             OK
         </button>
     </div>
 </div>
-
-<script>
-function closeModal() {
-    document.getElementById('errorModal').style.display = 'none';
-}
-</script>
 <?php endif; ?>
+
 </body>
 </html>

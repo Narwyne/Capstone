@@ -148,9 +148,9 @@ function timeAgo($datetime) {
     </div>
 
     <div class="flex items-center gap-2">
-      <span class="hidden sm:block text-red-200 text-sm">
+      <a href="profile.php" class="hidden sm:flex items-center gap-1.5 text-red-200 hover:text-white text-sm transition">
         👤 <?= htmlspecialchars($_SESSION['user']) ?>
-      </span>
+      </a>
 
       <?php if ($_SESSION['role'] === 'admin'): ?>
         <a href="admin.php"
@@ -158,6 +158,11 @@ function timeAgo($datetime) {
           🛡 Admin
         </a>
       <?php endif; ?>
+
+      <a href="profile.php"
+         class="sm:hidden bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
+        👤
+      </a>
 
       <a href="logout.php"
          class="bg-white text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition">
@@ -306,7 +311,7 @@ function timeAgo($datetime) {
 
 </div>
 
-<?php include 'report_incident_modal.php'; ?>
+<?php include 'modals/report_incident_modal.php'; ?>
 
 </body>
 </html>
