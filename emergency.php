@@ -223,7 +223,7 @@ $categoryMeta = [
   <!-- ADMIN MANAGE LINK -->
   <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
   <div class="anim text-center" style="animation-delay:<?= $delay ?>s">
-    <a href="manage_emergency.php"
+    <a href="admin.php"
        class="inline-block text-xs text-gray-400 hover:text-red-600 underline transition">
       ⚙️ Manage emergency contacts (Admin)
     </a>

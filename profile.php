@@ -19,8 +19,8 @@ $my_incidents = [];
 
 // ── Fetch current user ────────────────────────────────────────────
 if ($pdo) {
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE name = ? LIMIT 1");
-    $stmt->execute([$_SESSION['user']]);
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([$_SESSION['user_id']]);
     $user = $stmt->fetch();
 }
 
@@ -38,7 +38,7 @@ if ($pdo) {
         ORDER BY reported_at DESC
         LIMIT 10
     ");
-    $stmt->execute([$_SESSION['user']]);
+    $stmt->execute([$_SESSION['user_id']]);
     $my_incidents = $stmt->fetchAll();
 }
 
@@ -48,34 +48,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
 
     // ── Save profile info ──
     if ($action === 'save_profile') {
-        $name       = trim($_POST['name']       ?? '');
-        $phone      = trim($_POST['phone']      ?? '');
-        $department = trim($_POST['department'] ?? '');
-        $student_id = trim($_POST['student_id'] ?? '');
-        $bio        = trim($_POST['bio']        ?? '');
+        $first_name  = trim($_POST['first_name']  ?? '');
+        $middle_name = trim($_POST['middle_name'] ?? '');
+        $last_name   = trim($_POST['last_name']   ?? '');
+        $phone       = trim($_POST['phone']       ?? '');
+        $department  = trim($_POST['department']  ?? '');
+        $student_id  = trim($_POST['student_id']  ?? '');
+        $bio         = trim($_POST['bio']         ?? '');
 
-        if (empty($name)) {
-            $errors[] = 'Name cannot be empty.';
+        if (empty($first_name) || empty($last_name)) {
+            $errors[] = 'First name and last name are required.';
         } else {
-            // Check name not taken by another user
-            $check = $pdo->prepare("SELECT id FROM users WHERE name = ? AND id != ?");
-            $check->execute([$name, $user['id']]);
-            if ($check->fetch()) {
-                $errors[] = 'That name is already taken.';
-            } else {
-                $pdo->prepare("
-                    UPDATE users SET name=?, phone=?, department=?, student_id=?, bio=?
-                    WHERE id=?
-                ")->execute([$name, $phone, $department, $student_id, $bio, $user['id']]);
+            // Build display name: First [M.] Last
+            $name = $first_name;
+            if ($middle_name) $name .= ' ' . strtoupper($middle_name[0]) . '.';
+            $name .= ' ' . $last_name;
+            $name = trim($name);
 
-                $_SESSION['user'] = $name;
-                $toast = 'profile_saved';
+            $pdo->prepare("
+                UPDATE users
+                SET name=?, first_name=?, middle_name=?, last_name=?,
+                    phone=?, department=?, student_id=?, bio=?
+                WHERE id=?
+            ")->execute([$name, $first_name, $middle_name, $last_name,
+                         $phone, $department, $student_id, $bio, $user['id']]);
 
-                // Refresh user data
-                $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
-                $stmt->execute([$user['id']]);
-                $user = $stmt->fetch();
-            }
+            $_SESSION['user'] = explode(' ', $name)[0]; // keep first-name-only session
+            $toast = 'profile_saved';
+
+            // Refresh user data
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+            $stmt->execute([$user['id']]);
+            $user = $stmt->fetch();
         }
     }
 
@@ -292,10 +296,40 @@ if ($toast && isset($toasts[$toast])):
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Full Name <span class="text-red-500">*</span></label>
-            <input type="text" name="name" value="<?= htmlspecialchars($user['name']) ?>" required
-              class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
+          <!-- Name fields -->
+          <div class="sm:col-span-2">
+            <p class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              Full Name
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <input type="text" name="first_name" required
+                  value="<?= htmlspecialchars($user['first_name'] ?? '') ?>"
+                  placeholder="First Name"
+                  class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300">
+                <p class="text-xs text-gray-400 mt-1 text-center">First <span class="text-red-500">*</span></p>
+              </div>
+              <div>
+                <input type="text" name="middle_name"
+                  value="<?= htmlspecialchars($user['middle_name'] ?? '') ?>"
+                  placeholder="Middle Name"
+                  class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300">
+                <p class="text-xs text-gray-400 mt-1 text-center">Middle <span class="text-gray-300">(optional)</span></p>
+              </div>
+              <div>
+                <input type="text" name="last_name" required
+                  value="<?= htmlspecialchars($user['last_name'] ?? '') ?>"
+                  placeholder="Last Name"
+                  class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300">
+                <p class="text-xs text-gray-400 mt-1 text-center">Last <span class="text-red-500">*</span></p>
+              </div>
+            </div>
+            <!-- Live preview -->
+            <div id="namePreview" class="mt-2 text-xs text-gray-400 text-center <?= ($user['first_name'] || $user['last_name']) ? '' : 'hidden' ?>">
+              Will appear as: <span id="namePreviewText" class="font-semibold text-gray-700">
+                <?= htmlspecialchars($user['name'] ?? '') ?>
+              </span>
+            </div>
           </div>
 
           <div>
@@ -523,6 +557,29 @@ if ($toast && isset($toasts[$toast])):
 
 </div>
 
+<script>
+// Live name preview on profile tab
+function updateNamePreview() {
+  const f  = document.querySelector('[name=first_name]')?.value.trim()  || '';
+  const m  = document.querySelector('[name=middle_name]')?.value.trim() || '';
+  const l  = document.querySelector('[name=last_name]')?.value.trim()   || '';
+  const el = document.getElementById('namePreview');
+  const tx = document.getElementById('namePreviewText');
+  if (!el || !tx) return;
+  if (f || l) {
+    let full = f;
+    if (m) full += ' ' + m.charAt(0).toUpperCase() + '.';
+    if (l) full += ' ' + l;
+    tx.textContent = full.trim();
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
+['first_name','middle_name','last_name'].forEach(n => {
+  document.querySelector(`[name=${n}]`)?.addEventListener('input', updateNamePreview);
+});
+</script>
 <script src="js/profile.js"></script>
 </body>
 </html>

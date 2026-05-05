@@ -45,8 +45,9 @@ if (isset($_POST['login'])) {
             session_regenerate_id(true);
 
             // Show first name only
-            $_SESSION['user'] = explode(' ', $user['name'])[0];
-            $_SESSION['role'] = $user['role'];
+            $_SESSION['user']    = $user['name']; // full name
+            $_SESSION['user_id'] = $user['id'];   // IMPORTANT
+            $_SESSION['role']    = $user['role'];
 
             // REMEMBER ME
             if (isset($_POST['remember'])) {
