@@ -20,12 +20,15 @@ if (empty($_SESSION['csrf_token'])) {
 
 // Remembered email
 $email_value = isset($_COOKIE['user_email']) ? $_COOKIE['user_email'] : '';
+$remember_checked = isset($_COOKIE['user_email']) ? 'checked' : '';
 
 if (isset($_POST['login'])) {
 
     // CSRF VALIDATION
-    if (!isset($_POST['csrf_token']) || 
-        !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+    if (
+        !isset($_POST['csrf_token']) ||
+        !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
+    ) {
         die("Invalid CSRF token");
     }
 
@@ -44,18 +47,37 @@ if (isset($_POST['login'])) {
 
             session_regenerate_id(true);
 
-            // Show first name only
-            $_SESSION['user']    = $user['name']; // full name
-            $_SESSION['user_id'] = $user['id'];   // IMPORTANT
-            $_SESSION['role']    = $user['role'];
+            // SESSION DATA
+            $_SESSION['user'] = $user['name']; // Full name
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['role'] = $user['role'];
 
-            // REMEMBER ME
+            // REMEMBER ME FUNCTION
             if (isset($_POST['remember'])) {
-                setcookie("user_email", $email, time() + (86400 * 30), "/");
+
+                // Save email for 30 days
+                setcookie(
+                    "user_email",
+                    $email,
+                    time() + (86400 * 30),
+                    "/",
+                    "",
+                    false,
+                    true
+                );
+
             } else {
-                setcookie("user_email", "", time() - 3600, "/");
+
+                // Remove cookie if unchecked
+                setcookie(
+                    "user_email",
+                    "",
+                    time() - 3600,
+                    "/"
+                );
             }
 
+            // Redirect by role
             if ($user['role'] === 'admin') {
                 header("Location: admin.php");
             } else {
@@ -76,48 +98,85 @@ if (isset($_POST['login'])) {
 <!DOCTYPE html>
 <html>
 <head>
-<title>Login</title>
-<script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
 <body class="bg-gray-100 flex items-center justify-center h-screen">
 
 <form method="POST" class="bg-white p-6 rounded shadow w-80">
+
     <h2 class="text-xl font-bold mb-4 text-center text-red-600">Login</h2>
 
-    <input type="email" name="email" placeholder="Email"
-    value="<?php echo htmlspecialchars($email_value); ?>"
-    required class="w-full mb-3 p-2 border rounded">
+    <!-- Email -->
+    <input
+        type="email"
+        name="email"
+        placeholder="Email"
+        value="<?php echo htmlspecialchars($email_value); ?>"
+        required
+        class="w-full mb-3 p-2 border rounded"
+    >
 
-    <input type="password" name="password" placeholder="Password"
-    required class="w-full mb-3 p-2 border rounded">
+    <!-- Password -->
+    <input
+        type="password"
+        name="password"
+        placeholder="Password"
+        required
+        class="w-full mb-3 p-2 border rounded"
+    >
 
     <!-- Remember Me -->
-    <label class="flex items-center gap-2 text-sm mb-3">
-        <input type="checkbox" name="remember">
+    <label class="flex items-center gap-2 text-sm mb-3 cursor-pointer">
+        <input
+            type="checkbox"
+            name="remember"
+            <?php echo $remember_checked; ?>
+        >
         Remember Me
     </label>
 
     <!-- CSRF -->
-    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+    <input
+        type="hidden"
+        name="csrf_token"
+        value="<?php echo $_SESSION['csrf_token']; ?>"
+    >
 
-    <button name="login" class="w-full bg-red-600 text-white p-2 rounded">Login</button>
+    <!-- Login Button -->
+    <button
+        name="login"
+        class="w-full bg-red-600 text-white p-2 rounded hover:bg-red-700 transition"
+    >
+        Login
+    </button>
 
+    <!-- Register -->
     <p class="text-sm mt-3 text-center">
-        No account? <a href="register.php" class="text-red-600">Register</a>
+        No account?
+        <a href="register.php" class="text-red-600">Register</a>
     </p>
+
 </form>
 
 <!-- ERROR MODAL -->
 <?php if (!empty($error)): ?>
 <div id="errorModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
     <div class="bg-white p-6 rounded-xl shadow w-80 text-center">
+
         <h2 class="text-lg font-bold text-red-600 mb-3">Login Error</h2>
+
         <p class="mb-4"><?php echo $error; ?></p>
-        <button onclick="document.getElementById('errorModal').remove()" 
-        class="bg-red-600 text-white px-4 py-2 rounded">
+
+        <button
+            onclick="document.getElementById('errorModal').remove()"
+            class="bg-red-600 text-white px-4 py-2 rounded"
+        >
             OK
         </button>
+
     </div>
 </div>
 <?php endif; ?>
