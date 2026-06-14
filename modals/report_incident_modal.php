@@ -1,6 +1,7 @@
 <!-- =============================================
      REPORT INCIDENT MODAL
-     Include this anywhere in your dashboard.php body
+     Place this file in: modal/your_modal.php (or include from there)
+     The PHP scripts are assumed to be in the parent folder.
      ============================================= -->
 
 <!-- MODAL BACKDROP -->
@@ -57,15 +58,17 @@
           </select>
         </div>
 
-        <!-- SEVERITY -->
+        <!-- SEVERITY (with AI auto‑hide) -->
         <div>
           <label class="block text-sm font-semibold text-gray-700 mb-2">
             Severity Level <span class="text-red-500">*</span>
           </label>
-          <div class="flex gap-2">
+
+          <!-- Manual severity radios (hidden when AI is on) -->
+          <div id="severityManual" class="flex gap-2">
             <label class="severity-btn flex-1 cursor-pointer">
-              <input type="radio" name="severity" value="low" class="sr-only" required>
-              <div class="severity-label border-2 border-gray-200 rounded-xl p-2 text-center text-sm transition hover:border-green-400 peer-checked:bg-green-500">
+              <input type="radio" name="severity" value="low" class="sr-only">
+              <div class="severity-label border-2 border-gray-200 rounded-xl p-2 text-center text-sm transition hover:border-green-400">
                 <div class="text-lg">🟢</div>
                 <div class="font-medium text-gray-700">Low</div>
               </div>
@@ -91,6 +94,32 @@
                 <div class="font-medium text-gray-700">Critical</div>
               </div>
             </label>
+          </div>
+
+          <!-- AI-selected severity display (hidden when AI is off) -->
+          <div id="severityAI" class="hidden border-2 border-blue-200 rounded-xl p-4 text-center bg-blue-50/50">
+            <div class="text-lg" id="aiSeverityIcon"></div>
+            <div id="aiSeverityText" class="font-semibold text-gray-700"></div>
+            <p id="aiSeverityReason" class="text-xs text-gray-500 mt-1"></p>
+            <!-- Hidden input to hold the actual value for form submission -->
+            <input type="hidden" name="severity_ai" id="severity_ai_input" value="">
+          </div>
+
+          <!-- AI Waiting message (shown before prediction) -->
+          <div id="severityWaiting" class="hidden text-sm text-gray-500 mt-2 text-center">
+            🤖 AI will determine severity after you write a description…
+          </div>
+
+          <!-- AI CLASSIFY TOGGLE -->
+          <div class="flex items-center gap-3 bg-blue-50 rounded-xl p-3 mt-2">
+            <input type="checkbox" id="aiClassify" checked
+              class="w-4 h-4 accent-blue-600">
+            <div>
+              <label for="aiClassify" class="text-sm font-medium text-gray-700 cursor-pointer">
+                🤖 Let AI suggest severity
+              </label>
+              <p class="text-xs text-gray-400">AI will auto-select based on your description</p>
+            </div>
           </div>
         </div>
 
@@ -201,6 +230,7 @@ function openReportModal() {
   modal.classList.remove('hidden');
   modal.classList.add('flex');
   document.body.style.overflow = 'hidden';
+  toggleSeverityView();
 }
 
 function closeModal() {
@@ -220,6 +250,11 @@ function resetForm() {
   document.getElementById('submitBtn').disabled = false;
   document.getElementById('submitText').textContent = '🚨 Submit Report';
   document.getElementById('submitSpinner').classList.add('hidden');
+  // Clear AI state
+  document.getElementById('severity_ai_input').value = '';
+  document.getElementById('severityAI').classList.add('hidden');
+  document.getElementById('severityWaiting').classList.add('hidden');
+  toggleSeverityView();
 }
 
 // Close on backdrop click
@@ -249,13 +284,11 @@ document.getElementById('photoInput').addEventListener('change', function() {
 document.getElementById('incidentForm').addEventListener('submit', async function(e) {
   e.preventDefault();
 
-  // Basic validation
   const type     = document.getElementById('incident_type').value;
   const location = document.getElementById('location').value;
   const desc     = document.getElementById('description').value.trim();
-  const severity = document.querySelector('input[name="severity"]:checked');
 
-  if (!type || !location || !desc || !severity) {
+  if (!type || !location || !desc) {
     showError('Please fill in all required fields.');
     return;
   }
@@ -264,18 +297,34 @@ document.getElementById('incidentForm').addEventListener('submit', async functio
     return;
   }
 
-  // Loading state
+  let severity = null;
+  if (document.getElementById('aiClassify').checked) {
+    severity = document.getElementById('severity_ai_input').value;
+    if (!severity) {
+      showError('AI has not yet determined severity. Please wait or disable AI to select manually.');
+      return;
+    }
+  } else {
+    const radio = document.querySelector('input[name="severity"]:checked');
+    if (!radio) {
+      showError('Please select a severity level.');
+      return;
+    }
+    severity = radio.value;
+  }
+
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
   document.getElementById('submitText').textContent = 'Submitting...';
   document.getElementById('submitSpinner').classList.remove('hidden');
   document.getElementById('errorMsg').classList.add('hidden');
 
-  // Build form data
   const formData = new FormData(this);
+  formData.append('severity', severity);
 
   try {
-    const response = await fetch('submit_incident.php', {
+    // *** PATH CORRECTION: go up one level to find submit_incident.php ***
+    const response = await fetch('../submit_incident.php', {
       method: 'POST',
       body: formData
     });
@@ -285,7 +334,6 @@ document.getElementById('incidentForm').addEventListener('submit', async functio
     if (result.success) {
       document.getElementById('incidentForm').classList.add('hidden');
       document.getElementById('successMsg').classList.remove('hidden');
-      // Auto-close after 3s and refresh incident list
       setTimeout(() => {
         closeModal();
         document.getElementById('incidentForm').classList.remove('hidden');
@@ -309,4 +357,96 @@ function showError(msg) {
   document.getElementById('errorText').textContent = msg;
   document.getElementById('errorMsg').classList.remove('hidden');
 }
+
+// ---- AI Severity Classification ----
+let classifyTimer = null;
+
+async function classifySeverity() {
+  if (!document.getElementById('aiClassify').checked) return;
+
+  const type = document.getElementById('incident_type').value;
+  const desc = document.getElementById('description').value.trim();
+
+  document.getElementById('severity_ai_input').value = '';
+  document.getElementById('severityAI').classList.add('hidden');
+  document.getElementById('severityWaiting').classList.remove('hidden');
+  document.getElementById('severityWaiting').textContent = '🤖 AI will determine severity after you write a description…';
+
+  if (!type || desc.length < 15) return;
+
+  try {
+    const fd = new FormData();
+    fd.append('incident_type', type);
+    fd.append('description', desc);
+
+    // *** PATH CORRECTION: go up one level to find classify_incident.php ***
+    const res  = await fetch('../classify_incident.php', {
+      method: 'POST',
+      body: fd
+    });
+    const data = await res.json();
+
+    if (data.severity) {
+      document.getElementById('severityWaiting').classList.add('hidden');
+      document.getElementById('severityAI').classList.remove('hidden');
+      document.getElementById('severity_ai_input').value = data.severity;
+
+      const icons = { low: '🟢', medium: '🟡', high: '🔴', critical: '🚨' };
+      const colors = {
+        low: 'text-green-700', medium: 'text-yellow-700',
+        high: 'text-orange-700', critical: 'text-red-700'
+      };
+      document.getElementById('aiSeverityIcon').textContent = icons[data.severity] || '🤖';
+      document.getElementById('aiSeverityText').textContent = data.severity.toUpperCase();
+      document.getElementById('aiSeverityText').className = `font-semibold ${colors[data.severity] || 'text-gray-700'}`;
+      document.getElementById('aiSeverityReason').textContent = data.reason || '';
+    } else {
+      document.getElementById('severityWaiting').classList.remove('hidden');
+      document.getElementById('severityWaiting').textContent = '⚠️ Could not classify – please select manually.';
+    }
+  } catch (_) {
+    document.getElementById('severityWaiting').classList.remove('hidden');
+    document.getElementById('severityWaiting').textContent = '⚠️ AI unavailable – select severity below.';
+  }
+}
+
+function toggleSeverityView() {
+  const aiOn = document.getElementById('aiClassify').checked;
+  const manualDiv = document.getElementById('severityManual');
+  const aiDiv = document.getElementById('severityAI');
+  const waitingDiv = document.getElementById('severityWaiting');
+  const radios = document.querySelectorAll('input[name="severity"]');
+
+  if (aiOn) {
+    manualDiv.classList.add('hidden');
+    radios.forEach(r => r.checked = false);
+    if (document.getElementById('severity_ai_input').value) {
+      aiDiv.classList.remove('hidden');
+      waitingDiv.classList.add('hidden');
+    } else {
+      aiDiv.classList.add('hidden');
+      waitingDiv.classList.remove('hidden');
+      const desc = document.getElementById('description').value.trim();
+      const type = document.getElementById('incident_type').value;
+      if (type && desc.length >= 15) classifySeverity();
+    }
+  } else {
+    manualDiv.classList.remove('hidden');
+    aiDiv.classList.add('hidden');
+    waitingDiv.classList.add('hidden');
+    document.getElementById('severity_ai_input').value = '';
+  }
+}
+
+document.getElementById('aiClassify').addEventListener('change', toggleSeverityView);
+
+document.getElementById('description').addEventListener('input', function() {
+  clearTimeout(classifyTimer);
+  classifyTimer = setTimeout(classifySeverity, 800);
+});
+
+document.getElementById('incident_type').addEventListener('change', function() {
+  clearTimeout(classifyTimer);
+  classifyTimer = setTimeout(classifySeverity, 400);
+});
 </script>
