@@ -46,7 +46,7 @@ $payload = [
 ];
 
 // Forward to Groq
-$ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
+$ch = curl_init(' ');
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST           => true,
