@@ -411,61 +411,51 @@ function timeAgo($datetime) {
      MEDAI SCRIPT
      ============================================================ -->
 <script>
-  // ---- Incident context from PHP ----
-  const MEDAI_CONTEXT = {
-    stats: {
-      total: <?= (int)$total_reports ?>,
-      active: <?= (int)$active_incidents ?>,
-      resolved: <?= (int)$resolved ?>,
-      highRisk: <?= (int)$high_risk ?>
-    },
-    recent: <?= json_encode(array_map(function($i) {
-      return [
-        'type'     => $i['incident_type'],
-        'severity' => $i['severity'],
-        'location' => $i['location'],
-        'desc'     => $i['description'],
-        'time'     => $i['reported_at'],
-        'status'   => $i['status'],
-      ];
-    }, $recent_incidents)) ?>
-  };
-
-  const SYSTEM_PROMPT = `You are Medai, a friendly and knowledgeable campus safety AI assistant for ACLC Smart Campus.
-You have access to live incident data from the campus dashboard. Here is the current snapshot:
-
-CAMPUS STATS:
-- Total incident reports: ${MEDAI_CONTEXT.stats.total}
-- Active/open incidents: ${MEDAI_CONTEXT.stats.active}
-- Resolved incidents: ${MEDAI_CONTEXT.stats.resolved}
-- High-risk open incidents: ${MEDAI_CONTEXT.stats.highRisk}
-
-RECENT INCIDENTS (last 5):
-${MEDAI_CONTEXT.recent.length === 0
-  ? 'No incidents reported yet — campus is all clear.'
-  : MEDAI_CONTEXT.recent.map((r, i) =>
-      `${i+1}. Type: ${r.type} | Severity: ${r.severity} | Location: ${r.location} | Status: ${r.status} | Reported: ${r.time}${r.desc ? ' | Note: '+r.desc : ''}`
-    ).join('\n')}
-
-Your role:
-- Answer questions about current incidents, safety procedures, and campus emergency protocols.
-- Provide helpful, calm, and accurate responses.
-- For emergencies, always advise contacting campus security or emergency services.
-- Keep answers concise and easy to read. Use bullet points when listing steps.
-- You are embedded in a campus safety dashboard, so assume the user is a student or staff member.
-- Never make up incidents beyond what is provided in the data above.`;
-
   let medaiHistory = [];
-  let medaiOpen = false;
+  let medaiOpen    = false;
+  let medaiData    = null;
+
+  function buildSystemPrompt(d) {
+    const s = d.stats;
+    const breakdown = d.byType.length
+      ? d.byType.reduce((acc, r) => {
+          acc[r.incident_type] = acc[r.incident_type] || [];
+          acc[r.incident_type].push(`${r.severity}:${r.cnt}`);
+          return acc;
+        }, {})
+      : null;
+    const breakdownStr = breakdown
+      ? Object.entries(breakdown).map(([t,v]) => `${t}(${v.join(',')})`).join('; ')
+      : 'none';
+    const recentStr = d.recent.length
+      ? d.recent.map(r => `${r.incident_type}|${r.severity}|${r.location}|${r.reported_at.slice(0,16)}`).join('\n')
+      : 'none';
+
+    return `You are Medai, ACLC Smart Campus safety assistant.
+STATS: total=${s.total} active=${s.active} resolved=${s.resolved} high_risk=${s.high_risk}
+OPEN BY TYPE: ${breakdownStr}
+RECENT OPEN (type|sev|loc|time):\n${recentStr}
+Rules: Answer campus safety/incident questions using above data. To file a report collect: incident_type(fire/medical/accident/suspicious/theft/flooding/earthquake/other), severity(low/medium/high/critical), location, description(optional). When ready output exactly one line: SUBMIT_REPORT:{"incident_type":"...","severity":"...","location":"...","description":"..."}
+Be concise. Bullets for steps. Never invent data.`;
+  }
+
+  async function loadMedaiData() {
+    try {
+      const res = await fetch('medai_incidents.php');
+      medaiData = await res.json();
+    } catch {
+      medaiData = { stats:{total:0,active:0,resolved:0,high_risk:0}, byType:[], recent:[] };
+    }
+  }
 
   function toggleMedai() {
     medaiOpen = !medaiOpen;
     const panel = document.getElementById('medai-panel');
-    const dot   = document.getElementById('medai-dot');
     if (medaiOpen) {
       panel.style.display = 'flex';
       panel.style.flexDirection = 'column';
-      dot.classList.add('hidden');
+      document.getElementById('medai-dot').classList.add('hidden');
+      if (!medaiData) loadMedaiData();
       setTimeout(() => document.getElementById('medai-input').focus(), 100);
     } else {
       panel.style.display = 'none';
@@ -473,10 +463,7 @@ Your role:
   }
 
   function medaiKeydown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMedai();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMedai(); }
   }
 
   function sendSuggestion(text) {
@@ -485,95 +472,109 @@ Your role:
     sendMedai();
   }
 
-  function appendMessage(role, text) {
+  function appendMessage(role, html, isHtml = false) {
     const container = document.getElementById('medai-messages');
-    const isUser = role === 'user';
-
-    const wrapper = document.createElement('div');
-    wrapper.className = isUser
-      ? 'flex gap-2 items-start justify-end'
-      : 'flex gap-2 items-start';
-
+    const isUser    = role === 'user';
+    const wrapper   = document.createElement('div');
+    wrapper.className = isUser ? 'flex gap-2 items-start justify-end' : 'flex gap-2 items-start';
     const bubble = document.createElement('div');
     bubble.className = isUser
       ? 'bg-red-600 text-white rounded-2xl rounded-tr-sm px-3 py-2 text-sm max-w-[85%] whitespace-pre-wrap'
-      : 'bg-gray-100 rounded-2xl rounded-tl-sm px-3 py-2 text-sm text-gray-700 max-w-[85%] whitespace-pre-wrap';
-
-    // Simple markdown-like: bold **text**, line breaks
-    bubble.innerHTML = text
+      : 'bg-gray-100 rounded-2xl rounded-tl-sm px-3 py-2 text-sm text-gray-700 max-w-[85%]';
+    bubble.innerHTML = isHtml ? html : html
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
       .replace(/\n/g,'<br>');
-
     if (!isUser) {
-      const avatar = document.createElement('div');
-      avatar.className = 'w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-sm shrink-0 mt-0.5';
-      avatar.textContent = '🤖';
-      wrapper.appendChild(avatar);
+      const av = document.createElement('div');
+      av.className = 'w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-sm shrink-0 mt-0.5';
+      av.textContent = '🤖';
+      wrapper.appendChild(av);
     }
-
     wrapper.appendChild(bubble);
     container.appendChild(wrapper);
     container.scrollTop = container.scrollHeight;
-    return wrapper;
+  }
+
+  async function submitMedaiReport(payload) {
+    appendMessage('assistant',
+      `<p class="font-semibold">📋 Submitting report…</p>
+       <p class="text-xs text-gray-500 mt-0.5">${payload.incident_type} · ${payload.severity} · ${payload.location}</p>`, true);
+    try {
+      const res  = await fetch('medai_report.php', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        appendMessage('assistant',
+          `<p class="font-semibold text-emerald-700">✅ Report submitted!</p>
+           <p class="text-xs text-gray-500 mt-0.5">Logged and marked active. Stay safe!</p>`, true);
+        await loadMedaiData();
+      } else {
+        appendMessage('assistant', `⚠️ Error: ${data.error || 'Could not submit.'}`);
+      }
+    } catch {
+      appendMessage('assistant', '⚠️ Network error submitting report. Try again.');
+    }
   }
 
   async function sendMedai() {
     const input = document.getElementById('medai-input');
-    const text = input.value.trim();
+    const text  = input.value.trim();
     if (!text) return;
-
-    // Hide suggestions after first send
     document.getElementById('medai-suggestions').classList.add('hidden');
-
     input.value = '';
     input.style.height = 'auto';
     appendMessage('user', text);
+    medaiHistory.push({ role:'user', content:text });
 
-    medaiHistory.push({ role: 'user', content: text });
+    // Sliding window — keep last 6 messages only
+    if (medaiHistory.length > 6) medaiHistory = medaiHistory.slice(-6);
 
-    // Show typing
     const typing = document.getElementById('medai-typing');
+    const btn    = document.getElementById('medai-send-btn');
     typing.classList.remove('hidden');
     document.getElementById('medai-messages').scrollTop = 9999;
-
-    // Disable send
-    const btn = document.getElementById('medai-send-btn');
     btn.disabled = true;
 
+    if (!medaiData) await loadMedaiData();
+
     try {
-      const response = await fetch('medai_proxy.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          system: SYSTEM_PROMPT,
-          messages: medaiHistory
-        })
+      const res = await fetch('medai_proxy.php', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ system: buildSystemPrompt(medaiData), messages: medaiHistory })
       });
-
-      const data = await response.json();
-      const reply = data.content?.map(b => b.text || '').join('') || 'Sorry, I could not get a response. Please try again.';
-
+      const data  = await res.json();
+      let   reply = data.content?.map(b => b.text||'').join('') || 'No response. Please try again.';
       typing.classList.add('hidden');
-      appendMessage('assistant', reply);
-      medaiHistory.push({ role: 'assistant', content: reply });
 
-    } catch (err) {
+      const match = reply.match(/SUBMIT_REPORT:(\{.*?\})/s);
+      if (match) {
+        try {
+          const payload    = JSON.parse(match[1]);
+          const cleanReply = reply.replace(/SUBMIT_REPORT:\{.*?\}/s,'').trim();
+          if (cleanReply) appendMessage('assistant', cleanReply);
+          medaiHistory.push({ role:'assistant', content:reply });
+          await submitMedaiReport(payload);
+        } catch {
+          appendMessage('assistant', reply);
+          medaiHistory.push({ role:'assistant', content:reply });
+        }
+      } else {
+        appendMessage('assistant', reply);
+        medaiHistory.push({ role:'assistant', content:reply });
+      }
+    } catch {
       typing.classList.add('hidden');
-      appendMessage('assistant', 'Sorry, I\'m having trouble connecting right now. Please try again shortly.');
+      appendMessage('assistant', "Sorry, I'm having trouble connecting. Please try again.");
     }
-
     btn.disabled = false;
     document.getElementById('medai-messages').scrollTop = 9999;
   }
 
-  // Show dot on first load after 2s to hint at chatbot
   setTimeout(() => {
-    if (!medaiOpen) {
-      document.getElementById('medai-dot').classList.remove('hidden');
-    }
+    if (!medaiOpen) document.getElementById('medai-dot').classList.remove('hidden');
   }, 2000);
 </script>
 
