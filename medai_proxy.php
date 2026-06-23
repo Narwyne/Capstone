@@ -9,7 +9,7 @@ if (!isset($_SESSION['user'])) {
 }
 
 // ---- YOUR GROQ API KEY ----
-$api_key = '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';
+$api_key = 'groq_api_ke';
 // ---------------------------
 
 header('Content-Type: application/json');
