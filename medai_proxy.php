@@ -1,15 +1,11 @@
 <?php
 session_start();
 
-// Only allow logged-in users
 if (!isset($_SESSION['user'])) {
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized']);
     exit();
 }
-
-$api_key = 'groq_api_key';
-// ---------------------------
 
 header('Content-Type: application/json');
 
@@ -19,58 +15,24 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-$body = file_get_contents('php://input');
-$data = json_decode($body, true);
+require_once 'includes/groq.php';
 
+$data = json_decode(file_get_contents('php://input'), true);
 if (!$data || !isset($data['messages'])) {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid request']);
     exit();
 }
 
-// Build Groq-compatible request
-// system prompt is passed separately, prepend it as a system message
 $messages = [];
-if (!empty($data['system'])) {
-    $messages[] = ['role' => 'system', 'content' => $data['system']];
-}
-foreach ($data['messages'] as $msg) {
-    $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
-}
+if (!empty($data['system'])) $messages[] = ['role' => 'system', 'content' => $data['system']];
+foreach ($data['messages'] as $m) $messages[] = ['role' => $m['role'], 'content' => $m['content']];
 
-$payload = [
-    'model'       => 'llama-3.1-8b-instant',
-    'max_tokens'  => 1000,
-    'messages'    => $messages,
-];
+$res = groqChat($messages, 0.4, 600);
 
-// Forward to Groq
-$ch = curl_init(' ');
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST           => true,
-    CURLOPT_POSTFIELDS     => json_encode($payload),
-    CURLOPT_HTTPHEADER     => [
-        'Content-Type: application/json',
-        'Authorization: Bearer ' . $api_key,
-    ],
-]);
-
-$response = curl_exec($ch);
-$httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-// Convert Groq response format to what the JS expects
-// Groq uses OpenAI format: choices[0].message.content
-// We wrap it to match what dashboard.js reads: content[0].text
-$groq = json_decode($response, true);
-if (isset($groq['choices'][0]['message']['content'])) {
-    $reply = $groq['choices'][0]['message']['content'];
-    http_response_code(200);
-    echo json_encode([
-        'content' => [['type' => 'text', 'text' => $reply]]
-    ]);
+if ($res['ok']) {
+    echo json_encode(['content' => [['type' => 'text', 'text' => $res['text']]]]);
 } else {
-    http_response_code($httpCode);
-    echo $response;
+    http_response_code(502);
+    echo json_encode(['error' => $res['error']]);
 }

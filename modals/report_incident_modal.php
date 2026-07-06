@@ -111,7 +111,7 @@
           </div>
 
           <!-- AI CLASSIFY TOGGLE -->
-          <div class="flex items-center gap-3 bg-blue-50 rounded-xl p-3 mt-2">
+          <!-- <div class="flex items-center gap-3 bg-blue-50 rounded-xl p-3 mt-2">
             <input type="checkbox" id="aiClassify" checked
               class="w-4 h-4 accent-blue-600">
             <div>
@@ -120,7 +120,7 @@
               </label>
               <p class="text-xs text-gray-400">AI will auto-select based on your description</p>
             </div>
-          </div>
+          </div> -->
         </div>
 
         <!-- LOCATION -->
