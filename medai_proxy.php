@@ -8,8 +8,7 @@ if (!isset($_SESSION['user'])) {
     exit();
 }
 
-// ---- YOUR GROQ API KEY ----
-$api_key = 'groq_api_ke';
+$api_key = 'groq_api_key';
 // ---------------------------
 
 header('Content-Type: application/json');
