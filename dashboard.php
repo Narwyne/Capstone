@@ -209,11 +209,11 @@ function timeAgo($datetime) {
       <span class="font-bold text-sm leading-tight">Emergency Service</span>
     </a>
 
-    <button
+    <a href="risk_prediction.php"
       class="action-btn bg-white text-gray-700 rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col items-start gap-2">
       <span class="text-2xl">📊</span>
       <span class="font-semibold text-sm leading-tight">Risk Prediction</span>
-    </button>
+    </a>
 
   </div>
 
