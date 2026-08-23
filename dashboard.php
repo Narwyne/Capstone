@@ -518,6 +518,34 @@ Be concise. Bullets for steps. Never invent data.`;
     }
   }
 
+  function askConfirmSubmit(payload) {
+    const container = document.getElementById('medai-messages');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex gap-2 items-start';
+    wrapper.innerHTML = `
+      <div class="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-sm shrink-0 mt-0.5">🤖</div>
+      <div class="bg-gray-100 rounded-2xl rounded-tl-sm px-3 py-2 text-sm text-gray-700 max-w-[85%]">
+        <p class="mb-2">Ready to submit this report?</p>
+        <p class="text-xs text-gray-500 mb-2">${payload.incident_type} · ${payload.severity} · ${payload.location}${payload.description ? ' — ' + payload.description : ''}</p>
+        <div class="confirm-btns flex gap-2">
+          <button class="confirm-yes-btn text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-semibold transition">✅ Yes, submit</button>
+          <button class="confirm-no-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1.5 rounded-lg font-semibold transition">✕ Cancel</button>
+        </div>
+      </div>`;
+    container.appendChild(wrapper);
+    container.scrollTop = container.scrollHeight;
+
+    wrapper.querySelector('.confirm-yes-btn').addEventListener('click', async () => {
+      wrapper.querySelector('.confirm-btns').remove();
+      await submitMedaiReport(payload);
+    });
+    wrapper.querySelector('.confirm-no-btn').addEventListener('click', () => {
+      wrapper.querySelector('.confirm-btns').remove();
+      appendMessage('assistant', 'Okay, not submitted. Let me know if you want to change anything.');
+      medaiHistory.push({ role:'assistant', content:'User cancelled report submission.' });
+    });
+  }
+
   async function sendMedai() {
     const input = document.getElementById('medai-input');
     const text  = input.value.trim();
@@ -556,7 +584,7 @@ Be concise. Bullets for steps. Never invent data.`;
           const cleanReply = reply.replace(/SUBMIT_REPORT:\{.*?\}/s,'').trim();
           if (cleanReply) appendMessage('assistant', cleanReply);
           medaiHistory.push({ role:'assistant', content:reply });
-          await submitMedaiReport(payload);
+          askConfirmSubmit(payload);   // ← was: await submitMedaiReport(payload);
         } catch {
           appendMessage('assistant', reply);
           medaiHistory.push({ role:'assistant', content:reply });

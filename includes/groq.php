@@ -1,9 +1,15 @@
 <?php
-define('GROQ_API_KEY', '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');
+require_once __DIR__ . '/env.php';
+
+define('GROQ_API_KEY', getenv('GROQ_API_KEY') ?: '');
 define('GROQ_URL', 'https://api.groq.com/openai/v1/chat/completions');
-define('GROQ_MODEL', 'llama-3.1-8b-instant');
+define('GROQ_MODEL', getenv('GROQ_MODEL') ?: 'openai/gpt-oss-20b');
 
 function groqChat(array $messages, float $temp = 0.3, int $maxTokens = 500, int $timeout = 10): array {
+    if (GROQ_API_KEY === '') {
+        return ['ok' => false, 'error' => 'Missing GROQ_API_KEY — check your .env file'];
+    }
+
     $payload = json_encode(['model'=>GROQ_MODEL,'messages'=>$messages,'temperature'=>$temp,'max_tokens'=>$maxTokens]);
 
     for ($attempt = 1; $attempt <= 2; $attempt++) {
