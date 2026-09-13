@@ -340,6 +340,7 @@ function timeAgo($datetime) {
       <p class="font-bold text-sm leading-tight">Medai</p>
       <p class="text-xs text-red-200">Campus Safety Assistant</p>
     </div>
+    <button onclick="clearMedaiChat()" class="text-red-200 hover:text-white text-xs mr-2" title="Clear chat">🗑</button>
     <button onclick="toggleMedai()" class="text-red-200 hover:text-white text-lg leading-none transition">✕</button>
   </div>
 
@@ -411,9 +412,17 @@ function timeAgo($datetime) {
      MEDAI SCRIPT
      ============================================================ -->
 <script>
-  let medaiHistory = [];
+  // Per-user localStorage key so different accounts on the same
+  // browser don't see each other's chat history.
+  const MEDAI_KEY  = 'medai_chat_<?= (int)($_SESSION['user_id'] ?? 0) ?>';
+
+  let medaiHistory = JSON.parse(localStorage.getItem(MEDAI_KEY + '_api') || '[]');
   let medaiOpen    = false;
   let medaiData    = null;
+
+  function saveMedaiState() {
+    localStorage.setItem(MEDAI_KEY + '_api', JSON.stringify(medaiHistory));
+  }
 
   function buildSystemPrompt(d) {
     const s = d.stats;
@@ -472,7 +481,10 @@ Be concise. Bullets for steps. Never invent data.`;
     sendMedai();
   }
 
-  function appendMessage(role, html, isHtml = false) {
+  // `persist` controls whether the rendered bubble is written to the
+  // localStorage UI log. Pass false when re-rendering from that log
+  // (restoreMedaiChat) to avoid duplicating entries.
+  function appendMessage(role, html, isHtml = false, persist = true) {
     const container = document.getElementById('medai-messages');
     const isUser    = role === 'user';
     const wrapper   = document.createElement('div');
@@ -494,6 +506,56 @@ Be concise. Bullets for steps. Never invent data.`;
     wrapper.appendChild(bubble);
     container.appendChild(wrapper);
     container.scrollTop = container.scrollHeight;
+
+    if (persist) {
+      const log = JSON.parse(localStorage.getItem(MEDAI_KEY + '_ui') || '[]');
+      log.push({ isUser, html: bubble.innerHTML });
+      localStorage.setItem(MEDAI_KEY + '_ui', JSON.stringify(log));
+    }
+  }
+
+  // Re-render any saved bubbles on page load so the chat looks the
+  // same as before the refresh/restart.
+  function restoreMedaiChat() {
+    const log = JSON.parse(localStorage.getItem(MEDAI_KEY + '_ui') || '[]');
+    if (!log.length) return;
+    document.getElementById('medai-suggestions').classList.add('hidden');
+    const container = document.getElementById('medai-messages');
+    log.forEach(m => {
+      const wrapper = document.createElement('div');
+      wrapper.className = m.isUser ? 'flex gap-2 items-start justify-end' : 'flex gap-2 items-start';
+      const bubble = document.createElement('div');
+      bubble.className = m.isUser
+        ? 'bg-red-600 text-white rounded-2xl rounded-tr-sm px-3 py-2 text-sm max-w-[85%] whitespace-pre-wrap'
+        : 'bg-gray-100 rounded-2xl rounded-tl-sm px-3 py-2 text-sm text-gray-700 max-w-[85%]';
+      bubble.innerHTML = m.html;
+      if (!m.isUser) {
+        const av = document.createElement('div');
+        av.className = 'w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-sm shrink-0 mt-0.5';
+        av.textContent = '🤖';
+        wrapper.appendChild(av);
+      }
+      wrapper.appendChild(bubble);
+      container.appendChild(wrapper);
+    });
+    container.scrollTop = container.scrollHeight;
+  }
+  restoreMedaiChat();
+
+  // Wipe both the API-format history and the rendered UI log, and
+  // reset the panel back to the welcome message.
+  function clearMedaiChat() {
+    localStorage.removeItem(MEDAI_KEY + '_api');
+    localStorage.removeItem(MEDAI_KEY + '_ui');
+    medaiHistory = [];
+    document.getElementById('medai-messages').innerHTML = `
+      <div class="flex gap-2 items-start">
+        <div class="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-sm shrink-0 mt-0.5">🤖</div>
+        <div class="bg-gray-100 rounded-2xl rounded-tl-sm px-3 py-2 text-sm text-gray-700 max-w-[85%]">
+          Hi! I'm <strong>Medai</strong>, your campus safety assistant. Ask me anything about incidents, safety tips, or emergency procedures! 🏫
+        </div>
+      </div>`;
+    document.getElementById('medai-suggestions').classList.remove('hidden');
   }
 
   async function submitMedaiReport(payload) {
@@ -543,6 +605,7 @@ Be concise. Bullets for steps. Never invent data.`;
       wrapper.querySelector('.confirm-btns').remove();
       appendMessage('assistant', 'Okay, not submitted. Let me know if you want to change anything.');
       medaiHistory.push({ role:'assistant', content:'User cancelled report submission.' });
+      saveMedaiState();
     });
   }
 
@@ -558,6 +621,7 @@ Be concise. Bullets for steps. Never invent data.`;
 
     // Sliding window — keep last 6 messages only
     if (medaiHistory.length > 6) medaiHistory = medaiHistory.slice(-6);
+    saveMedaiState();
 
     const typing = document.getElementById('medai-typing');
     const btn    = document.getElementById('medai-send-btn');
@@ -584,14 +648,17 @@ Be concise. Bullets for steps. Never invent data.`;
           const cleanReply = reply.replace(/SUBMIT_REPORT:\{.*?\}/s,'').trim();
           if (cleanReply) appendMessage('assistant', cleanReply);
           medaiHistory.push({ role:'assistant', content:reply });
+          saveMedaiState();
           askConfirmSubmit(payload);   // ← was: await submitMedaiReport(payload);
         } catch {
           appendMessage('assistant', reply);
           medaiHistory.push({ role:'assistant', content:reply });
+          saveMedaiState();
         }
       } else {
         appendMessage('assistant', reply);
         medaiHistory.push({ role:'assistant', content:reply });
+        saveMedaiState();
       }
     } catch {
       typing.classList.add('hidden');
