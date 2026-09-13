@@ -419,10 +419,112 @@ function timeAgo($datetime) {
   let medaiHistory = JSON.parse(localStorage.getItem(MEDAI_KEY + '_api') || '[]');
   let medaiOpen    = false;
   let medaiData    = null;
+  let medaiEmergencyContacts = null;
 
   function saveMedaiState() {
     localStorage.setItem(MEDAI_KEY + '_api', JSON.stringify(medaiHistory));
   }
+
+  // ── Emergency escalation detection ──────────────────────────
+  // Deliberately conservative substring matches for *live* emergency
+  // language. Tune this list as needed — casual mentions like "how do
+  // I report a fire" won't trigger it, only phrases signaling that
+  // something is happening right now.
+  const EMERGENCY_PHRASES = [
+    'fire right now', 'on fire right now', 'building is on fire', "there's a fire",
+    'theres a fire', 'smoke is filling', 'smoke everywhere',
+    'not breathing', 'unconscious', 'no pulse', 'heart attack', 'having a seizure',
+    'bleeding a lot', 'bleeding badly', "won't stop bleeding", 'wont stop bleeding',
+    'overdose', 'collapsed', 'choking', "can't breathe", 'cant breathe',
+    'active shooter', 'has a gun', 'has a knife', 'being attacked', 'someone is stabbing',
+    'help me now', 'help us now', 'emergency right now', 'someone is dying',
+  ];
+
+  function detectEmergency(text) {
+    const t = text.toLowerCase();
+    return EMERGENCY_PHRASES.some(p => t.includes(p));
+  }
+
+  function escHtmlLocal(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function escAttrLocal(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Emergency contacts (real DB data, not hardcoded) ────────
+  async function loadEmergencyContacts() {
+    try {
+      const res  = await fetch('medai_emergency.php');
+      const data = await res.json();
+      medaiEmergencyContacts = data.contacts || {};
+    } catch {
+      medaiEmergencyContacts = {};
+    }
+  }
+
+  async function ensureMedaiContext() {
+    const tasks = [];
+    if (!medaiData) tasks.push(loadMedaiData());
+    if (!medaiEmergencyContacts) tasks.push(loadEmergencyContacts());
+    if (tasks.length) await Promise.all(tasks);
+  }
+
+  function formatContactsForPrompt() {
+    if (!medaiEmergencyContacts) return 'not loaded';
+    const parts = [];
+    Object.entries(medaiEmergencyContacts).forEach(([cat, list]) => {
+      (list || []).forEach(c => parts.push(`${c.name}:${c.number}(${cat})`));
+    });
+    return parts.length ? parts.join('; ') : 'none configured';
+  }
+
+  async function showEmergencyBanner(triggerText) {
+    if (!medaiEmergencyContacts) await loadEmergencyContacts();
+
+    const priority = ['fire', 'medical', 'police', 'campus', 'other'];
+    const contacts = medaiEmergencyContacts || {};
+
+    let buttonsHtml = '';
+    priority.forEach(cat => {
+      const list = contacts[cat];
+      if (!list || !list[0]) return;
+      const c   = list[0]; // top contact for this category
+      const tel = String(c.number).replace(/[^0-9+]/g, '');
+      buttonsHtml += `<a href="tel:${tel}" class="inline-flex items-center gap-1 bg-white border border-red-300 text-red-700 text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition">📞 ${escHtmlLocal(c.name)} · ${escHtmlLocal(c.number)}</a>`;
+    });
+
+    if (!buttonsHtml) {
+      buttonsHtml = `<a href="tel:911" class="inline-flex items-center gap-1 bg-white border border-red-300 text-red-700 text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition">📞 National Emergency · 911</a>`;
+    }
+
+    const html = `
+      <div class="border border-red-300 bg-red-50 rounded-xl p-3">
+        <p class="font-bold text-red-700 text-sm mb-1">⚠️ This sounds urgent</p>
+        <p class="text-xs text-red-600 mb-2">If you or someone else is in immediate danger, call now:</p>
+        <div class="flex flex-wrap gap-1.5 mb-2">${buttonsHtml}</div>
+        <button class="report-now-btn text-xs bg-red-600 hover:bg-red-700 text-white font-semibold px-3 py-1.5 rounded-lg transition" data-trigger="${escAttrLocal(triggerText)}">🚨 Report This Now</button>
+      </div>`;
+
+    appendMessage('assistant', html, true);
+  }
+
+  // Delegated so "Report Now" keeps working even after the chat log
+  // is restored from localStorage on a later page load.
+  document.getElementById('medai-messages').addEventListener('click', function(e) {
+    const btn = e.target.closest('.report-now-btn');
+    if (!btn) return;
+    const trigger = btn.dataset.trigger || '';
+    toggleMedai();
+    openReportModal();
+    setTimeout(() => {
+      const descEl = document.getElementById('description');
+      if (descEl && trigger) {
+        descEl.value = trigger;
+        descEl.dispatchEvent(new Event('input'));
+      }
+    }, 60);
+  });
 
   function buildSystemPrompt(d) {
     const s = d.stats;
@@ -444,7 +546,8 @@ function timeAgo($datetime) {
 STATS: total=${s.total} active=${s.active} resolved=${s.resolved} high_risk=${s.high_risk}
 OPEN BY TYPE: ${breakdownStr}
 RECENT OPEN (type|sev|loc|time):\n${recentStr}
-Rules: Answer campus safety/incident questions using above data. To file a report collect: incident_type(fire/medical/accident/suspicious/theft/flooding/earthquake/other), severity(low/medium/high/critical), location, description(optional). When ready output exactly one line: SUBMIT_REPORT:{"incident_type":"...","severity":"...","location":"...","description":"..."}
+EMERGENCY CONTACTS (cite the exact name and number when relevant, never invent or alter a number): ${formatContactsForPrompt()}
+Rules: Answer campus safety/incident questions using above data. If someone describes a live/ongoing emergency, immediately tell them to call the most relevant number above, then offer to log a report. To file a report collect: incident_type(fire/medical/accident/suspicious/theft/flooding/earthquake/other), severity(low/medium/high/critical), location, description(optional). When ready output exactly one line: SUBMIT_REPORT:{"incident_type":"...","severity":"...","location":"...","description":"..."}
 Be concise. Bullets for steps. Never invent data.`;
   }
 
@@ -464,7 +567,7 @@ Be concise. Bullets for steps. Never invent data.`;
       panel.style.display = 'flex';
       panel.style.flexDirection = 'column';
       document.getElementById('medai-dot').classList.add('hidden');
-      if (!medaiData) loadMedaiData();
+      ensureMedaiContext();
       setTimeout(() => document.getElementById('medai-input').focus(), 100);
     } else {
       panel.style.display = 'none';
@@ -623,13 +726,18 @@ Be concise. Bullets for steps. Never invent data.`;
     if (medaiHistory.length > 6) medaiHistory = medaiHistory.slice(-6);
     saveMedaiState();
 
+    // Emergency escalation check — fires instantly, before waiting on the AI reply.
+    if (detectEmergency(text)) {
+      await showEmergencyBanner(text);
+    }
+
     const typing = document.getElementById('medai-typing');
     const btn    = document.getElementById('medai-send-btn');
     typing.classList.remove('hidden');
     document.getElementById('medai-messages').scrollTop = 9999;
     btn.disabled = true;
 
-    if (!medaiData) await loadMedaiData();
+    await ensureMedaiContext();
 
     try {
       const res = await fetch('medai_proxy.php', {

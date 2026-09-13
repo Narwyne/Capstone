@@ -224,6 +224,16 @@
      JAVASCRIPT
      ============================================= -->
 <script>
+// ---- AI classify toggle (currently disabled — the checkbox above is
+// commented out). This helper reads it safely instead of calling
+// document.getElementById('aiClassify').checked directly, which throws
+// when the element doesn't exist and was silently breaking every
+// listener below it, including form submission. ----
+function isAIClassifyOn() {
+  const el = document.getElementById('aiClassify');
+  return el ? el.checked : false;
+}
+
 // ---- Open / Close ----
 function openReportModal() {
   const modal = document.getElementById('reportModal');
@@ -298,7 +308,7 @@ document.getElementById('incidentForm').addEventListener('submit', async functio
   }
 
   let severity = null;
-  if (document.getElementById('aiClassify').checked) {
+  if (isAIClassifyOn()) {
     severity = document.getElementById('severity_ai_input').value;
     if (!severity) {
       showError('AI has not yet determined severity. Please wait or disable AI to select manually.');
@@ -362,7 +372,7 @@ function showError(msg) {
 let classifyTimer = null;
 
 async function classifySeverity() {
-  if (!document.getElementById('aiClassify').checked) return;
+  if (!isAIClassifyOn()) return;
 
   const type = document.getElementById('incident_type').value;
   const desc = document.getElementById('description').value.trim();
@@ -411,7 +421,7 @@ async function classifySeverity() {
 }
 
 function toggleSeverityView() {
-  const aiOn = document.getElementById('aiClassify').checked;
+  const aiOn = isAIClassifyOn();
   const manualDiv = document.getElementById('severityManual');
   const aiDiv = document.getElementById('severityAI');
   const waitingDiv = document.getElementById('severityWaiting');
@@ -438,7 +448,7 @@ function toggleSeverityView() {
   }
 }
 
-document.getElementById('aiClassify').addEventListener('change', toggleSeverityView);
+document.getElementById('aiClassify')?.addEventListener('change', toggleSeverityView);
 
 document.getElementById('description').addEventListener('input', function() {
   clearTimeout(classifyTimer);
