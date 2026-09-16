@@ -131,18 +131,31 @@
           <select name="location" id="location" required
             class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
             <option value="">— Select Building/Area —</option>
-            <option value="engineering">Engineering Building</option>
-            <option value="admin">Administration Building</option>
-            <option value="library">Library</option>
-            <option value="cafeteria">Cafeteria</option>
-            <option value="gymnasium">Gymnasium</option>
-            <option value="parking">Parking Area</option>
-            <option value="entrance">Main Entrance / Gate</option>
-            <option value="laboratory">Computer Laboratory</option>
-            <option value="clinic">School Clinic</option>
-            <option value="comfort_room">Comfort Room</option>
-            <option value="grounds">School Grounds / Open Area</option>
-            <option value="other">Other (specify in description)</option>
+            <?php
+              // Locations are admin-managed (see admin.php → Locations tab).
+              // $pdo is expected to already be set by the page that includes
+              // this modal (e.g. dashboard.php). Falls back to a static list
+              // if the table doesn't exist yet or $pdo isn't available.
+              $locOptions = [];
+              if (isset($pdo) && $pdo) {
+                  try {
+                      $locOptions = $pdo->query("
+                          SELECT name FROM locations
+                          WHERE is_active = 1
+                          ORDER BY sort_order, name
+                      ")->fetchAll(PDO::FETCH_COLUMN);
+                  } catch (PDOException $e) {
+                      $locOptions = [];
+                  }
+              }
+              if (empty($locOptions)) {
+                  $locOptions = ['engineering','admin','library','cafeteria','gymnasium','parking',
+                                 'entrance','laboratory','clinic','comfort_room','grounds','other'];
+              }
+              foreach ($locOptions as $loc):
+            ?>
+            <option value="<?= htmlspecialchars($loc) ?>"><?= htmlspecialchars(ucwords(str_replace('_',' ',$loc))) ?></option>
+            <?php endforeach; ?>
           </select>
         </div>
 
@@ -224,16 +237,6 @@
      JAVASCRIPT
      ============================================= -->
 <script>
-// ---- AI classify toggle (currently disabled — the checkbox above is
-// commented out). This helper reads it safely instead of calling
-// document.getElementById('aiClassify').checked directly, which throws
-// when the element doesn't exist and was silently breaking every
-// listener below it, including form submission. ----
-function isAIClassifyOn() {
-  const el = document.getElementById('aiClassify');
-  return el ? el.checked : false;
-}
-
 // ---- Open / Close ----
 function openReportModal() {
   const modal = document.getElementById('reportModal');
@@ -308,7 +311,7 @@ document.getElementById('incidentForm').addEventListener('submit', async functio
   }
 
   let severity = null;
-  if (isAIClassifyOn()) {
+  if (document.getElementById('aiClassify').checked) {
     severity = document.getElementById('severity_ai_input').value;
     if (!severity) {
       showError('AI has not yet determined severity. Please wait or disable AI to select manually.');
@@ -372,7 +375,7 @@ function showError(msg) {
 let classifyTimer = null;
 
 async function classifySeverity() {
-  if (!isAIClassifyOn()) return;
+  if (!document.getElementById('aiClassify').checked) return;
 
   const type = document.getElementById('incident_type').value;
   const desc = document.getElementById('description').value.trim();
@@ -421,7 +424,7 @@ async function classifySeverity() {
 }
 
 function toggleSeverityView() {
-  const aiOn = isAIClassifyOn();
+  const aiOn = document.getElementById('aiClassify').checked;
   const manualDiv = document.getElementById('severityManual');
   const aiDiv = document.getElementById('severityAI');
   const waitingDiv = document.getElementById('severityWaiting');
@@ -448,7 +451,7 @@ function toggleSeverityView() {
   }
 }
 
-document.getElementById('aiClassify')?.addEventListener('change', toggleSeverityView);
+document.getElementById('aiClassify').addEventListener('change', toggleSeverityView);
 
 document.getElementById('description').addEventListener('input', function() {
   clearTimeout(classifyTimer);

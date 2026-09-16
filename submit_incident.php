@@ -18,14 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-// -------------------------------------------------------
-// DB CONFIG — update these to match your database
-// -------------------------------------------------------
-$host   = 'localhost';
-$dbname = 'campus_system';
-$user   = 'root';          // ← your DB username
-$pass   = '';              // ← your DB password
-// -------------------------------------------------------
+require_once 'includes/db.php';
+if (!$pdo) {
+    echo json_encode(['success' => false, 'message' => 'Database error. Please contact the administrator.']);
+    exit();
+}
 
 // --- Collect & sanitize inputs ---
 $incident_type = trim($_POST['incident_type'] ?? '');
@@ -36,13 +33,23 @@ $anonymous     = isset($_POST['anonymous']) && $_POST['anonymous'] == '1';
 $reported_by   = $anonymous ? 'Anonymous' : $_SESSION['user'];
 
 // Validate required fields
-$allowed_types     = ['fire','medical','accident','suspicious','theft','flooding','earthquake','other'];
-$allowed_severities= ['low','medium','high','critical'];
-$allowed_locations = ['engineering','admin','library','cafeteria','gymnasium','parking',
-                      'entrance','laboratory','clinic','comfort_room','grounds','other'];
+$allowed_types      = ['fire','medical','accident','suspicious','theft','flooding','earthquake','other'];
+$allowed_severities = ['low','medium','high','critical'];
+
+// Locations are now admin-managed. Pull the active list from the DB;
+// fall back to the old static list if the table isn't there yet.
+try {
+    $allowed_locations = $pdo->query("SELECT name FROM locations WHERE is_active=1")->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    $allowed_locations = [];
+}
+if (empty($allowed_locations)) {
+    $allowed_locations = ['engineering','admin','library','cafeteria','gymnasium','parking',
+                          'entrance','laboratory','clinic','comfort_room','grounds','other'];
+}
 
 $errors = [];
-if (!in_array($incident_type, $allowed_types))     $errors[] = 'Invalid incident type.';
+if (!in_array($incident_type, $allowed_types))      $errors[] = 'Invalid incident type.';
 if (!in_array($severity,      $allowed_severities)) $errors[] = 'Invalid severity.';
 if (!in_array($location,      $allowed_locations))  $errors[] = 'Invalid location.';
 if (strlen($description) < 10)                      $errors[] = 'Description too short.';
@@ -86,11 +93,6 @@ if (isset($_FILES['photo']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
 
 // --- Insert into DB ---
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
-
     $stmt = $pdo->prepare("
         INSERT INTO incidents 
             (incident_type, severity, location, description, reported_by, photo_path, reported_at)

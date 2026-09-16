@@ -13,7 +13,7 @@ if (!isset($_SESSION['user']) || $_SESSION['role'] != 'admin') {
 require_once 'includes/db.php';
 require_once 'includes/admin_helpers.php';
 require_once 'includes/admin_actions.php';  // handles POST + redirects
-require_once 'includes/admin_queries.php';  // populates $stats, $users, $incidents, $emergency_contacts
+require_once 'includes/admin_queries.php';  // populates $stats, $users, $incidents, $emergency_contacts, $locations
 
 $ec_categories = getEcCategories();
 $toast_map     = getToastMap();
@@ -114,6 +114,7 @@ $toast         = $_GET['toast'] ?? '';
         'incidents' => ['🚨','Incident Reports', count($incidents)],
         'users'     => ['👥','Users',             count($users)],
         'emergency' => ['📞','Emergency Contacts', count($emergency_contacts)],
+        'locations' => ['📍','Locations',          count($locations)],
       ];
       foreach ($tabs as $tid => [$ticon,$tlabel,$tcount]):
         $isActive = ($active_tab === $tid);
@@ -480,6 +481,68 @@ $toast         = $_GET['toast'] ?? '';
 
     </div>
 
+    <!-- ══════════════════════════════════════
+         LOCATIONS PANEL
+         ══════════════════════════════════════ -->
+    <div id="panel-locations" class="p-4 <?= $active_tab !== 'locations' ? 'hidden' : '' ?>">
+
+      <!-- ADD FORM -->
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-5">
+        <h3 class="font-bold text-gray-700 mb-3 text-sm">➕ Add New Location</h3>
+        <form id="addLocForm" class="flex flex-col sm:flex-row gap-2">
+          <input type="text" name="name" required placeholder="e.g. Engineering Building"
+            class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
+          <button type="submit" id="addLocBtn"
+            class="bg-red-700 hover:bg-red-800 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
+            <span id="addLocBtnText">➕ Add Location</span>
+            <svg id="addLocSpinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+            </svg>
+          </button>
+        </form>
+        <p class="text-xs text-gray-400 mt-2">This is exactly what shows up in the "Location" dropdown when someone reports an incident. Hidden locations stay in old reports but won't be offered for new ones.</p>
+      </div>
+
+      <!-- LOCATIONS LIST -->
+      <div id="locListWrap">
+      <?php if (empty($locations)): ?>
+      <div id="locEmptyState" class="text-center py-12 text-gray-400">
+        <div class="text-5xl mb-3">📍</div>
+        <p class="font-medium">No locations yet.</p>
+        <p class="text-xs mt-1">Use the form above to add your first location.</p>
+      </div>
+      <?php else: ?>
+      <div class="space-y-2" id="locList">
+        <?php foreach ($locations as $loc): ?>
+        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5" id="loc-row-<?= $loc['id'] ?>">
+          <span class="text-sm font-medium text-gray-700" id="loc-name-<?= $loc['id'] ?>">
+            📍 <?= htmlspecialchars(ucwords(str_replace('_',' ',$loc['name']))) ?>
+          </span>
+          <div class="flex items-center gap-2">
+            <span id="loc-status-<?= $loc['id'] ?>" class="text-xs font-semibold px-2 py-0.5 rounded-full <?= $loc['is_active'] ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400' ?>">
+              <?= $loc['is_active'] ? '● Active' : '● Hidden' ?>
+            </span>
+            <button onclick="ajaxEditLocation(<?= $loc['id'] ?>)"
+              class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 px-2 py-1 rounded-lg transition">✏️ Edit</button>
+            <button onclick="ajaxToggleLocation(<?= $loc['id'] ?>)" id="loc-toggle-<?= $loc['id'] ?>"
+              class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition">
+              <?= $loc['is_active'] ? '🙈 Hide' : '👁 Show' ?>
+            </button>
+            <button onclick="ajaxDeleteLocation(<?= $loc['id'] ?>, '<?= htmlspecialchars($loc['name'], ENT_QUOTES) ?>')"
+              class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded-lg transition">🗑</button>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <p class="text-xs text-gray-400 mt-3 text-right mono" id="locCount">
+        <?= count($locations) ?> location<?= count($locations)!==1?'s':'' ?> total
+      </p>
+      <?php endif; ?>
+      </div><!-- end locListWrap -->
+
+    </div>
+
   </div><!-- end tabs wrapper -->
 </div><!-- end main -->
 
@@ -566,7 +629,7 @@ const ACTIVE_TAB = '<?= $active_tab ?>';
 
 // ── Tab switching ──────────────────────────────────────
 function switchTab(tab) {
-  ['incidents','users','emergency'].forEach(t => {
+  ['incidents','users','emergency','locations'].forEach(t => {
     document.getElementById('panel-'+t).classList.toggle('hidden', t!==tab);
     const btn = document.getElementById('tab-'+t);
     btn.classList.toggle('active', t===tab);
@@ -876,6 +939,159 @@ function updateContactInDOM(ec) {
       const dot = card.querySelector('.w-1\\.5');
       if (dot) dot.className = `w-1.5 shrink-0 ${meta.dot}`;
     }
+  }
+}
+
+// ── Locations: helpers ─────────────────────────────────
+function fmtLocName(n) {
+  return String(n||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+}
+function updateLocCount() {
+  const rows = document.querySelectorAll('#locList > div');
+  const c = document.getElementById('locCount');
+  if (c) { const n = rows.length; c.textContent = `${n} location${n!==1?'s':''} total`; }
+}
+
+// ── AJAX: Add location ─────────────────────────────────
+document.getElementById('addLocForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('addLocBtn');
+  const spinner = document.getElementById('addLocSpinner');
+  const btnText = document.getElementById('addLocBtnText');
+  btn.disabled = true; spinner.classList.remove('hidden'); btnText.textContent = 'Adding...';
+
+  try {
+    const fd = new FormData(this);
+    fd.append('action','add_location');
+    const res  = await fetch('location_ajax.php', {method:'POST', body:fd});
+    const data = await res.json();
+
+    if (data.success && data.location) {
+      appendNewLocation(data.location);
+      this.reset();
+      showToast('✅ Location added successfully');
+      updateLocCount();
+    } else {
+      showToast('⚠️ ' + (data.message||'Failed to add'), 'bg-red-600');
+    }
+  } catch(e) {
+    showToast('⚠️ Network error', 'bg-red-600');
+  }
+
+  btn.disabled = false; spinner.classList.add('hidden'); btnText.textContent = '➕ Add Location';
+});
+
+function appendNewLocation(loc) {
+  document.getElementById('locEmptyState')?.remove();
+
+  let list = document.getElementById('locList');
+  if (!list) {
+    // First location ever added — build the wrapper that normally comes from PHP
+    const wrap = document.getElementById('locListWrap');
+    list = document.createElement('div');
+    list.className = 'space-y-2';
+    list.id = 'locList';
+    wrap.appendChild(list);
+    const p = document.createElement('p');
+    p.className = 'text-xs text-gray-400 mt-3 text-right mono';
+    p.id = 'locCount';
+    wrap.appendChild(p);
+  }
+
+  const isActive = loc.is_active == 1;
+  const div = document.createElement('div');
+  div.className = 'flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5';
+  div.id = 'loc-row-'+loc.id;
+  div.innerHTML = `
+    <span class="text-sm font-medium text-gray-700" id="loc-name-${loc.id}">📍 ${escHtml(fmtLocName(loc.name))}</span>
+    <div class="flex items-center gap-2">
+      <span id="loc-status-${loc.id}" class="text-xs font-semibold px-2 py-0.5 rounded-full ${isActive?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}">${isActive?'● Active':'● Hidden'}</span>
+      <button onclick="ajaxEditLocation(${loc.id})" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 px-2 py-1 rounded-lg transition">✏️ Edit</button>
+      <button onclick="ajaxToggleLocation(${loc.id})" id="loc-toggle-${loc.id}" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition">${isActive?'🙈 Hide':'👁 Show'}</button>
+      <button onclick="ajaxDeleteLocation(${loc.id},'${escHtml(loc.name)}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded-lg transition">🗑</button>
+    </div>`;
+  list.appendChild(div);
+}
+
+// ── AJAX: Toggle location active ───────────────────────
+async function ajaxToggleLocation(id) {
+  const btn = document.getElementById('loc-toggle-'+id);
+  if (btn) btn.disabled = true;
+
+  try {
+    const fd = new FormData();
+    fd.append('action','toggle_location');
+    fd.append('id', id);
+    const res  = await fetch('location_ajax.php', {method:'POST', body:fd});
+    const data = await res.json();
+
+    if (data.success) {
+      const active = data.is_active;
+      const statusEl = document.getElementById('loc-status-'+id);
+      if (statusEl) {
+        statusEl.className = `text-xs font-semibold px-2 py-0.5 rounded-full ${active?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}`;
+        statusEl.textContent = active ? '● Active' : '● Hidden';
+      }
+      if (btn) btn.textContent = active ? '🙈 Hide' : '👁 Show';
+      showToast(active ? '👁 Location visible' : '🙈 Location hidden', active ? 'bg-green-600' : 'bg-gray-700');
+    } else {
+      showToast('⚠️ ' + (data.message||'Failed to update'), 'bg-red-600');
+    }
+  } catch(e) {
+    showToast('⚠️ Network error', 'bg-red-600');
+  }
+
+  if (btn) btn.disabled = false;
+}
+
+// ── AJAX: Delete location ──────────────────────────────
+async function ajaxDeleteLocation(id, name) {
+  if (!confirm(`Delete "${fmtLocName(name)}"?`)) return;
+
+  try {
+    const fd = new FormData();
+    fd.append('action','delete_location');
+    fd.append('id', id);
+    const res  = await fetch('location_ajax.php', {method:'POST', body:fd});
+    const data = await res.json();
+
+    if (data.success) {
+      const el = document.getElementById('loc-row-'+id);
+      if (el) { el.style.transition='opacity 0.3s'; el.style.opacity='0'; setTimeout(()=>el.remove(), 300); }
+      showToast('🗑 Location deleted', 'bg-gray-700');
+      setTimeout(updateLocCount, 350);
+    } else {
+      showToast('⚠️ ' + (data.message||'Failed to delete'), 'bg-red-600');
+    }
+  } catch(e) {
+    showToast('⚠️ Network error', 'bg-red-600');
+  }
+}
+
+// ── AJAX: Edit location (simple prompt-based rename) ──
+async function ajaxEditLocation(id) {
+  const nameEl = document.getElementById('loc-name-'+id);
+  const current = nameEl.textContent.replace('📍','').trim();
+  const name = prompt('Location name:', current);
+  if (name === null) return;
+  if (name.trim() === '' || name.trim() === current) return;
+
+  try {
+    const fd = new FormData();
+    fd.append('action','edit_location');
+    fd.append('id', id);
+    fd.append('name', name.trim());
+    const res  = await fetch('location_ajax.php', {method:'POST', body:fd});
+    const data = await res.json();
+
+    if (data.success && data.location) {
+      nameEl.textContent = '📍 ' + fmtLocName(data.location.name);
+      showToast('✅ Location updated');
+    } else {
+      showToast('⚠️ ' + (data.message||'Failed to save'), 'bg-red-600');
+    }
+  } catch(e) {
+    showToast('⚠️ Network error', 'bg-red-600');
   }
 }
 

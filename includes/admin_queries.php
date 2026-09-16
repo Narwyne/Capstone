@@ -44,3 +44,17 @@ if ($pdo) {
         // Table may not exist yet — silently ignore
     }
 }
+
+// ── Locations ────────────────────────────────────────────────────
+
+$locations = [];
+if ($pdo) {
+    try {
+        $locations = $pdo->query("
+            SELECT * FROM locations
+            ORDER BY sort_order, name
+        ")->fetchAll();
+    } catch (PDOException $e) {
+        // Table may not exist yet — silently ignore
+    }
+}
