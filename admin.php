@@ -490,7 +490,9 @@ $toast         = $_GET['toast'] ?? '';
       <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-5">
         <h3 class="font-bold text-gray-700 mb-3 text-sm">➕ Add New Location</h3>
         <form id="addLocForm" class="flex flex-col sm:flex-row gap-2">
-          <input type="text" name="name" required placeholder="e.g. Engineering Building"
+          <input type="text" name="branch" required placeholder="Branch e.g. Main Campus, Annex"
+            class="sm:w-56 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
+          <input type="text" name="name" required placeholder="Room / Area e.g. Engineering Building"
             class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
           <button type="submit" id="addLocBtn"
             class="bg-red-700 hover:bg-red-800 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
@@ -501,7 +503,7 @@ $toast         = $_GET['toast'] ?? '';
             </svg>
           </button>
         </form>
-        <p class="text-xs text-gray-400 mt-2">This is exactly what shows up in the "Location" dropdown when someone reports an incident. Hidden locations stay in old reports but won't be offered for new ones.</p>
+        <p class="text-xs text-gray-400 mt-2">Branch groups locations by campus/site — this is what the incident report form shows first. Room/Area is exactly what shows up in the "Location" dropdown after a branch is picked. Hidden locations stay in old reports but won't be offered for new ones.</p>
       </div>
 
       <!-- LOCATIONS LIST -->
@@ -518,12 +520,13 @@ $toast         = $_GET['toast'] ?? '';
         <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5" id="loc-row-<?= $loc['id'] ?>">
           <span class="text-sm font-medium text-gray-700" id="loc-name-<?= $loc['id'] ?>">
             📍 <?= htmlspecialchars(ucwords(str_replace('_',' ',$loc['name']))) ?>
+            <span class="text-xs text-gray-400 font-normal ml-1" id="loc-branch-<?= $loc['id'] ?>">— <?= htmlspecialchars($loc['branch'] ?? 'Main Campus') ?></span>
           </span>
           <div class="flex items-center gap-2">
             <span id="loc-status-<?= $loc['id'] ?>" class="text-xs font-semibold px-2 py-0.5 rounded-full <?= $loc['is_active'] ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400' ?>">
               <?= $loc['is_active'] ? '● Active' : '● Hidden' ?>
             </span>
-            <button onclick="ajaxEditLocation(<?= $loc['id'] ?>)"
+            <button onclick="openEditLocModal(<?= htmlspecialchars(json_encode($loc), ENT_QUOTES) ?>)"
               class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 px-2 py-1 rounded-lg transition">✏️ Edit</button>
             <button onclick="ajaxToggleLocation(<?= $loc['id'] ?>)" id="loc-toggle-<?= $loc['id'] ?>"
               class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition">
@@ -605,6 +608,48 @@ $toast         = $_GET['toast'] ?? '';
           </svg>
         </button>
         <button type="button" onclick="closeEditModal()"
+          class="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm font-medium transition">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- EDIT LOCATION MODAL -->
+<div id="editLocModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-modal">
+    <div class="bg-amber-500 text-white px-5 py-4 rounded-t-2xl flex justify-between items-center">
+      <h3 class="font-bold text-lg">✏️ Edit Location</h3>
+      <button onclick="closeEditLocModal()" class="text-white hover:text-amber-100 text-2xl leading-none">&times;</button>
+    </div>
+    <form id="editLocForm" class="p-5 space-y-4">
+      <input type="hidden" id="editLoc_id" name="id">
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1">Branch <span class="text-red-500">*</span></label>
+        <input type="text" id="editLoc_branch" name="branch" required placeholder="e.g. Main Campus, Annex"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1">Room / Area <span class="text-red-500">*</span></label>
+        <input type="text" id="editLoc_name" name="name" required placeholder="e.g. Engineering Building"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+      </div>
+
+      <div id="editLocError" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-sm"></div>
+
+      <div class="flex gap-3">
+        <button type="submit" id="editLocSaveBtn"
+          class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
+          <span id="editLocSaveText">💾 Save Changes</span>
+          <svg id="editLocSpinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+          </svg>
+        </button>
+        <button type="button" onclick="closeEditLocModal()"
           class="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm font-medium transition">
           Cancel
         </button>
@@ -999,14 +1044,15 @@ function appendNewLocation(loc) {
   }
 
   const isActive = loc.is_active == 1;
+  const branch = loc.branch || 'Main Campus';
   const div = document.createElement('div');
   div.className = 'flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5';
   div.id = 'loc-row-'+loc.id;
   div.innerHTML = `
-    <span class="text-sm font-medium text-gray-700" id="loc-name-${loc.id}">📍 ${escHtml(fmtLocName(loc.name))}</span>
+    <span class="text-sm font-medium text-gray-700" id="loc-name-${loc.id}">📍 ${escHtml(fmtLocName(loc.name))} <span class="text-xs text-gray-400 font-normal ml-1" id="loc-branch-${loc.id}">— ${escHtml(branch)}</span></span>
     <div class="flex items-center gap-2">
       <span id="loc-status-${loc.id}" class="text-xs font-semibold px-2 py-0.5 rounded-full ${isActive?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}">${isActive?'● Active':'● Hidden'}</span>
-      <button onclick="ajaxEditLocation(${loc.id})" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 px-2 py-1 rounded-lg transition">✏️ Edit</button>
+      <button onclick="openEditLocModal(${escAttr(JSON.stringify(loc))})" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 px-2 py-1 rounded-lg transition">✏️ Edit</button>
       <button onclick="ajaxToggleLocation(${loc.id})" id="loc-toggle-${loc.id}" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition">${isActive?'🙈 Hide':'👁 Show'}</button>
       <button onclick="ajaxDeleteLocation(${loc.id},'${escHtml(loc.name)}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded-lg transition">🗑</button>
     </div>`;
@@ -1068,30 +1114,66 @@ async function ajaxDeleteLocation(id, name) {
   }
 }
 
-// ── AJAX: Edit location (simple prompt-based rename) ──
-async function ajaxEditLocation(id) {
-  const nameEl = document.getElementById('loc-name-'+id);
-  const current = nameEl.textContent.replace('📍','').trim();
-  const name = prompt('Location name:', current);
-  if (name === null) return;
-  if (name.trim() === '' || name.trim() === current) return;
+// ── Edit Location Modal ─────────────────────────────────
+function openEditLocModal(loc) {
+  document.getElementById('editLoc_id').value     = loc.id;
+  document.getElementById('editLoc_name').value   = fmtLocName(loc.name);
+  document.getElementById('editLoc_branch').value = loc.branch || 'Main Campus';
+  document.getElementById('editLocError').classList.add('hidden');
+  document.getElementById('editLocSaveText').textContent = '💾 Save Changes';
+  document.getElementById('editLocSpinner').classList.add('hidden');
+  document.getElementById('editLocSaveBtn').disabled = false;
+  const m = document.getElementById('editLocModal');
+  m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closeEditLocModal() {
+  const m = document.getElementById('editLocModal');
+  m.classList.add('hidden'); m.classList.remove('flex');
+}
+document.getElementById('editLocModal').addEventListener('click', function(e){ if(e.target===this) closeEditLocModal(); });
+
+// ── AJAX: Save location edit ───────────────────────────
+document.getElementById('editLocForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn     = document.getElementById('editLocSaveBtn');
+  const spinner = document.getElementById('editLocSpinner');
+  const btnText = document.getElementById('editLocSaveText');
+  const errDiv  = document.getElementById('editLocError');
+  btn.disabled = true; spinner.classList.remove('hidden'); btnText.textContent = 'Saving...';
+  errDiv.classList.add('hidden');
 
   try {
-    const fd = new FormData();
+    const fd = new FormData(this);
     fd.append('action','edit_location');
-    fd.append('id', id);
-    fd.append('name', name.trim());
     const res  = await fetch('location_ajax.php', {method:'POST', body:fd});
     const data = await res.json();
 
     if (data.success && data.location) {
-      nameEl.textContent = '📍 ' + fmtLocName(data.location.name);
+      updateLocationInDOM(data.location);
+      closeEditLocModal();
       showToast('✅ Location updated');
     } else {
-      showToast('⚠️ ' + (data.message||'Failed to save'), 'bg-red-600');
+      errDiv.textContent = data.message || 'Failed to save changes.';
+      errDiv.classList.remove('hidden');
+      btn.disabled = false; spinner.classList.add('hidden'); btnText.textContent = '💾 Save Changes';
     }
-  } catch(e) {
-    showToast('⚠️ Network error', 'bg-red-600');
+  } catch(err) {
+    errDiv.textContent = 'Network error. Please try again.';
+    errDiv.classList.remove('hidden');
+    btn.disabled = false; spinner.classList.add('hidden'); btnText.textContent = '💾 Save Changes';
+  }
+});
+
+function updateLocationInDOM(loc) {
+  const nameEl   = document.getElementById('loc-name-'+loc.id);
+  const branchEl = document.getElementById('loc-branch-'+loc.id);
+  if (nameEl && nameEl.childNodes[0]) nameEl.childNodes[0].textContent = '📍 ' + fmtLocName(loc.name) + ' ';
+  if (branchEl) branchEl.textContent = '— ' + (loc.branch || 'Main Campus');
+
+  const row = document.getElementById('loc-row-'+loc.id);
+  if (row) {
+    const editBtn = row.querySelector('button[onclick^="openEditLocModal"]');
+    if (editBtn) editBtn.setAttribute('onclick', `openEditLocModal(${escAttr(JSON.stringify(loc))})`);
   }
 }
 

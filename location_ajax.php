@@ -26,15 +26,17 @@ function slugify(string $s): string {
 
 // ── Add new ───────────────────────────────────────────
 if ($action === 'add_location') {
-    $name = trim($_POST['name'] ?? '');
+    $name   = trim($_POST['name']   ?? '');
+    $branch = trim($_POST['branch'] ?? '') ?: 'Main Campus';
+
     if ($name === '') { echo json_encode(['success'=>false,'message'=>'Name is required']); exit(); }
 
     $slug = slugify($name);
     if ($slug === '') { echo json_encode(['success'=>false,'message'=>'Invalid name']); exit(); }
 
     try {
-        $pdo->prepare("INSERT INTO locations (name,is_active,sort_order) VALUES (?,1,0)")
-            ->execute([$slug]);
+        $pdo->prepare("INSERT INTO locations (name,branch,is_active,sort_order) VALUES (?,?,1,0)")
+            ->execute([$slug, $branch]);
     } catch (PDOException $e) {
         echo json_encode(['success'=>false,'message'=>'That location already exists']);
         exit();
@@ -49,8 +51,9 @@ if ($action === 'add_location') {
 
 // ── Edit ──────────────────────────────────────────────
 if ($action === 'edit_location') {
-    $id   = (int)($_POST['id']   ?? 0);
-    $name = trim($_POST['name']  ?? '');
+    $id     = (int)($_POST['id']     ?? 0);
+    $name   = trim($_POST['name']    ?? '');
+    $branch = trim($_POST['branch']  ?? '');
 
     if (!$id)          { echo json_encode(['success'=>false,'message'=>'Invalid ID']); exit(); }
     if ($name === '')  { echo json_encode(['success'=>false,'message'=>'Name is required']); exit(); }
@@ -59,7 +62,11 @@ if ($action === 'edit_location') {
     if ($slug === '') { echo json_encode(['success'=>false,'message'=>'Invalid name']); exit(); }
 
     try {
-        $pdo->prepare("UPDATE locations SET name=? WHERE id=?")->execute([$slug, $id]);
+        if ($branch !== '') {
+            $pdo->prepare("UPDATE locations SET name=?, branch=? WHERE id=?")->execute([$slug, $branch, $id]);
+        } else {
+            $pdo->prepare("UPDATE locations SET name=? WHERE id=?")->execute([$slug, $id]);
+        }
     } catch (PDOException $e) {
         echo json_encode(['success'=>false,'message'=>'That name is already in use']);
         exit();

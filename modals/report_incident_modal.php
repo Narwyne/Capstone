@@ -1,8 +1,35 @@
 <!-- =============================================
      REPORT INCIDENT MODAL
-     Place this file in: modal/your_modal.php (or include from there)
+     Place this file in: modals/report_incident_modal.php
      The PHP scripts are assumed to be in the parent folder.
      ============================================= -->
+
+<?php
+// Branch → room map, built from admin-managed locations.
+// $pdo is expected to already be set by the page that includes this modal
+// (e.g. dashboard.php). Falls back to a single "Main Campus" branch with
+// the old static room list if the table/column isn't there yet.
+$branchLocations = [];
+if (isset($pdo) && $pdo) {
+    try {
+        $rows = $pdo->query("
+            SELECT name, branch FROM locations
+            WHERE is_active = 1
+            ORDER BY branch, sort_order, name
+        ")->fetchAll();
+        foreach ($rows as $r) {
+            $b = $r['branch'] ?: 'Main Campus';
+            $branchLocations[$b][] = $r['name'];
+        }
+    } catch (PDOException $e) {
+        $branchLocations = [];
+    }
+}
+if (empty($branchLocations)) {
+    $branchLocations = ['Main Campus' => ['engineering','admin','library','cafeteria','gymnasium','parking',
+                         'entrance','laboratory','clinic','comfort_room','grounds','other']];
+}
+?>
 
 <!-- MODAL BACKDROP -->
 <div id="reportModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -123,39 +150,28 @@
           </div> -->
         </div>
 
-        <!-- LOCATION -->
+        <!-- SCHOOL BRANCH -->
         <div>
           <label class="block text-sm font-semibold text-gray-700 mb-1">
-            Location <span class="text-red-500">*</span>
+            School Branch <span class="text-red-500">*</span>
           </label>
-          <select name="location" id="location" required
+          <select id="branch" required
             class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
-            <option value="">— Select Building/Area —</option>
-            <?php
-              // Locations are admin-managed (see admin.php → Locations tab).
-              // $pdo is expected to already be set by the page that includes
-              // this modal (e.g. dashboard.php). Falls back to a static list
-              // if the table doesn't exist yet or $pdo isn't available.
-              $locOptions = [];
-              if (isset($pdo) && $pdo) {
-                  try {
-                      $locOptions = $pdo->query("
-                          SELECT name FROM locations
-                          WHERE is_active = 1
-                          ORDER BY sort_order, name
-                      ")->fetchAll(PDO::FETCH_COLUMN);
-                  } catch (PDOException $e) {
-                      $locOptions = [];
-                  }
-              }
-              if (empty($locOptions)) {
-                  $locOptions = ['engineering','admin','library','cafeteria','gymnasium','parking',
-                                 'entrance','laboratory','clinic','comfort_room','grounds','other'];
-              }
-              foreach ($locOptions as $loc):
-            ?>
-            <option value="<?= htmlspecialchars($loc) ?>"><?= htmlspecialchars(ucwords(str_replace('_',' ',$loc))) ?></option>
+            <option value="">— Select Branch —</option>
+            <?php foreach (array_keys($branchLocations) as $b): ?>
+            <option value="<?= htmlspecialchars($b) ?>"><?= htmlspecialchars($b) ?></option>
             <?php endforeach; ?>
+          </select>
+        </div>
+
+        <!-- LOCATION / ROOM (populated after branch is chosen) -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">
+            Location / Room <span class="text-red-500">*</span>
+          </label>
+          <select name="location" id="location" required disabled
+            class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white disabled:bg-gray-100 disabled:text-gray-400">
+            <option value="">— Select a branch first —</option>
           </select>
         </div>
 
@@ -237,6 +253,28 @@
      JAVASCRIPT
      ============================================= -->
 <script>
+// Branch → room list, rendered server-side from admin-managed locations.
+const BRANCH_LOCATIONS = <?= json_encode($branchLocations) ?>;
+
+function populateRoomsForBranch(branchName) {
+  const locSel = document.getElementById('location');
+  const rooms  = BRANCH_LOCATIONS[branchName] || [];
+
+  if (!branchName || rooms.length === 0) {
+    locSel.innerHTML = '<option value="">— Select a branch first —</option>';
+    locSel.disabled  = true;
+    return;
+  }
+
+  locSel.innerHTML = '<option value="">— Select Building/Area —</option>' +
+    rooms.map(r => `<option value="${r}">${r.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`).join('');
+  locSel.disabled = false;
+}
+
+document.getElementById('branch').addEventListener('change', function() {
+  populateRoomsForBranch(this.value);
+});
+
 // ---- Open / Close ----
 function openReportModal() {
   const modal = document.getElementById('reportModal');
@@ -267,6 +305,9 @@ function resetForm() {
   document.getElementById('severity_ai_input').value = '';
   document.getElementById('severityAI').classList.add('hidden');
   document.getElementById('severityWaiting').classList.add('hidden');
+  // Clear branch → room cascade
+  document.getElementById('branch').value = '';
+  populateRoomsForBranch('');
   toggleSeverityView();
 }
 
@@ -298,10 +339,11 @@ document.getElementById('incidentForm').addEventListener('submit', async functio
   e.preventDefault();
 
   const type     = document.getElementById('incident_type').value;
+  const branch   = document.getElementById('branch').value;
   const location = document.getElementById('location').value;
   const desc     = document.getElementById('description').value.trim();
 
-  if (!type || !location || !desc) {
+  if (!type || !branch || !location || !desc) {
     showError('Please fill in all required fields.');
     return;
   }
@@ -334,6 +376,9 @@ document.getElementById('incidentForm').addEventListener('submit', async functio
 
   const formData = new FormData(this);
   formData.append('severity', severity);
+  // `location` is already in formData (it's a named <select>); branch is
+  // UI-only and not sent, since submit_incident.php validates against the
+  // room name, not the branch.
 
   try {
     // *** PATH CORRECTION: go up one level to find submit_incident.php ***
