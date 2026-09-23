@@ -489,13 +489,20 @@ $toast         = $_GET['toast'] ?? '';
       <!-- ADD FORM -->
       <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-5">
         <h3 class="font-bold text-gray-700 mb-3 text-sm">➕ Add New Location</h3>
-        <form id="addLocForm" class="flex flex-col sm:flex-row gap-2">
-          <input type="text" name="branch" required placeholder="Branch e.g. Main Campus, Annex"
-            class="sm:w-56 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
+        <form id="addLocForm" class="flex flex-col sm:flex-row gap-2 items-start">
+          <div class="sm:w-56 w-full">
+            <select id="addLocBranch" required
+              class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white">
+              <option value="">— Select Branch —</option>
+              <option value="__new__">➕ Add new branch…</option>
+            </select>
+            <input type="text" id="addLocBranchNew" placeholder="New branch name"
+              class="hidden mt-2 w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
+          </div>
           <input type="text" name="name" required placeholder="Room / Area e.g. Engineering Building"
-            class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
+            class="flex-1 w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
           <button type="submit" id="addLocBtn"
-            class="bg-red-700 hover:bg-red-800 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
+            class="bg-red-700 hover:bg-red-800 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 shrink-0">
             <span id="addLocBtnText">➕ Add Location</span>
             <svg id="addLocSpinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -503,10 +510,10 @@ $toast         = $_GET['toast'] ?? '';
             </svg>
           </button>
         </form>
-        <p class="text-xs text-gray-400 mt-2">Branch groups locations by campus/site — this is what the incident report form shows first. Room/Area is exactly what shows up in the "Location" dropdown after a branch is picked. Hidden locations stay in old reports but won't be offered for new ones.</p>
+        <p class="text-xs text-gray-400 mt-2">Pick an existing branch or add a new one. Room/Area is exactly what shows up in the "Location" dropdown on the incident report form. Hidden locations stay in old reports but won't be offered for new ones.</p>
       </div>
 
-      <!-- LOCATIONS LIST -->
+      <!-- LOCATIONS LIST (grouped by branch) -->
       <div id="locListWrap">
       <?php if (empty($locations)): ?>
       <div id="locEmptyState" class="text-center py-12 text-gray-400">
@@ -514,26 +521,41 @@ $toast         = $_GET['toast'] ?? '';
         <p class="font-medium">No locations yet.</p>
         <p class="text-xs mt-1">Use the form above to add your first location.</p>
       </div>
-      <?php else: ?>
-      <div class="space-y-2" id="locList">
-        <?php foreach ($locations as $loc): ?>
-        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5" id="loc-row-<?= $loc['id'] ?>">
-          <span class="text-sm font-medium text-gray-700" id="loc-name-<?= $loc['id'] ?>">
-            📍 <?= htmlspecialchars(ucwords(str_replace('_',' ',$loc['name']))) ?>
-            <span class="text-xs text-gray-400 font-normal ml-1" id="loc-branch-<?= $loc['id'] ?>">— <?= htmlspecialchars($loc['branch'] ?? 'Main Campus') ?></span>
-          </span>
-          <div class="flex items-center gap-2">
-            <span id="loc-status-<?= $loc['id'] ?>" class="text-xs font-semibold px-2 py-0.5 rounded-full <?= $loc['is_active'] ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400' ?>">
-              <?= $loc['is_active'] ? '● Active' : '● Hidden' ?>
-            </span>
-            <button onclick="openEditLocModal(<?= htmlspecialchars(json_encode($loc), ENT_QUOTES) ?>)"
-              class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 px-2 py-1 rounded-lg transition">✏️ Edit</button>
-            <button onclick="ajaxToggleLocation(<?= $loc['id'] ?>)" id="loc-toggle-<?= $loc['id'] ?>"
-              class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition">
-              <?= $loc['is_active'] ? '🙈 Hide' : '👁 Show' ?>
-            </button>
-            <button onclick="ajaxDeleteLocation(<?= $loc['id'] ?>, '<?= htmlspecialchars($loc['name'], ENT_QUOTES) ?>')"
-              class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded-lg transition">🗑</button>
+      <?php else:
+        $locationsByBranch = [];
+        foreach ($locations as $loc) {
+            $b = $loc['branch'] ?: 'Main Campus';
+            $locationsByBranch[$b][] = $loc;
+        }
+        uksort($locationsByBranch, 'strcasecmp');
+      ?>
+      <div class="space-y-5" id="locGroups">
+        <?php foreach ($locationsByBranch as $branchName => $locs): ?>
+        <div class="loc-branch-group" data-branch="<?= htmlspecialchars($branchName) ?>">
+          <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+            🏢 <?= htmlspecialchars($branchName) ?> <span class="text-gray-300 font-normal loc-branch-count">(<?= count($locs) ?>)</span>
+          </h4>
+          <div class="space-y-2 loc-branch-list">
+            <?php foreach ($locs as $loc): ?>
+            <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5" id="loc-row-<?= $loc['id'] ?>">
+              <span class="text-sm font-medium text-gray-700" id="loc-name-<?= $loc['id'] ?>">
+                📍 <?= htmlspecialchars(ucwords(str_replace('_',' ',$loc['name']))) ?>
+              </span>
+              <div class="flex items-center gap-2">
+                <span id="loc-status-<?= $loc['id'] ?>" class="text-xs font-semibold px-2 py-0.5 rounded-full <?= $loc['is_active'] ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400' ?>">
+                  <?= $loc['is_active'] ? '● Active' : '● Hidden' ?>
+                </span>
+                <button onclick="openEditLocModal(<?= htmlspecialchars(json_encode($loc), ENT_QUOTES) ?>)"
+                  class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 px-2 py-1 rounded-lg transition">✏️ Edit</button>
+                <button onclick="ajaxToggleLocation(<?= $loc['id'] ?>)" id="loc-toggle-<?= $loc['id'] ?>"
+                  class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition">
+                  <?= $loc['is_active'] ? '🙈 Hide' : '👁 Show' ?>
+                </button>
+                <button onclick="ajaxDeleteLocation(<?= $loc['id'] ?>, '<?= htmlspecialchars($loc['name'], ENT_QUOTES) ?>')"
+                  class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded-lg transition">🗑</button>
+              </div>
+            </div>
+            <?php endforeach; ?>
           </div>
         </div>
         <?php endforeach; ?>
@@ -628,8 +650,13 @@ $toast         = $_GET['toast'] ?? '';
 
       <div>
         <label class="block text-xs font-semibold text-gray-500 mb-1">Branch <span class="text-red-500">*</span></label>
-        <input type="text" id="editLoc_branch" name="branch" required placeholder="e.g. Main Campus, Annex"
-          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        <select id="editLocBranch" required
+          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+          <option value="">— Select Branch —</option>
+          <option value="__new__">➕ Add new branch…</option>
+        </select>
+        <input type="text" id="editLocBranchNew" placeholder="New branch name"
+          class="hidden mt-2 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
       </div>
 
       <div>
@@ -991,10 +1018,119 @@ function updateContactInDOM(ec) {
 function fmtLocName(n) {
   return String(n||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
 }
+
+// Branch list is derived from the group headers already in the DOM —
+// single source of truth, no separate JS array to keep in sync.
+function currentBranches() {
+  const wrap = document.getElementById('locGroups');
+  if (!wrap) return [];
+  return Array.from(wrap.children).map(g => g.dataset.branch).sort((a,b)=>a.localeCompare(b));
+}
+function buildBranchOptions(selectEl, selected) {
+  const branches = currentBranches();
+  selectEl.innerHTML = '<option value="">— Select Branch —</option>' +
+    branches.map(b => `<option value="${escAttr(b)}"${b===selected?' selected':''}>${escHtml(b)}</option>`).join('') +
+    '<option value="__new__">➕ Add new branch…</option>';
+}
+function syncBranchDropdown() {
+  const sel = document.getElementById('addLocBranch');
+  if (!sel) return;
+  const prev = sel.value;
+  buildBranchOptions(sel, (prev && prev !== '__new__') ? prev : '');
+}
+function onBranchSelectChange(select, newInput) {
+  if (select.value === '__new__') {
+    select.removeAttribute('name');
+    newInput.classList.remove('hidden');
+    newInput.required = true;
+    newInput.name = 'branch';
+    newInput.value = '';
+    newInput.focus();
+  } else {
+    newInput.classList.add('hidden');
+    newInput.required = false;
+    newInput.removeAttribute('name');
+    select.name = 'branch';
+  }
+}
+document.getElementById('addLocBranch').addEventListener('change', function() {
+  onBranchSelectChange(this, document.getElementById('addLocBranchNew'));
+});
+document.getElementById('editLocBranch').addEventListener('change', function() {
+  onBranchSelectChange(this, document.getElementById('editLocBranchNew'));
+});
+buildBranchOptions(document.getElementById('addLocBranch'), '');
+
+function findBranchGroup(branch) {
+  const wrap = document.getElementById('locGroups');
+  if (!wrap) return null;
+  return Array.from(wrap.children).find(g => g.dataset.branch === branch) || null;
+}
+function refreshGroupCount(group) {
+  const n = group.querySelectorAll('.loc-branch-list > div').length;
+  const c = group.querySelector('.loc-branch-count');
+  if (c) c.textContent = `(${n})`;
+}
+function ensureGroupsWrap() {
+  let wrap = document.getElementById('locGroups');
+  if (!wrap) {
+    document.getElementById('locEmptyState')?.remove();
+    const listWrap = document.getElementById('locListWrap');
+    wrap = document.createElement('div');
+    wrap.className = 'space-y-5';
+    wrap.id = 'locGroups';
+    listWrap.appendChild(wrap);
+    const p = document.createElement('p');
+    p.className = 'text-xs text-gray-400 mt-3 text-right mono';
+    p.id = 'locCount';
+    listWrap.appendChild(p);
+  }
+  return wrap;
+}
+function buildBranchGroup(branch) {
+  const group = document.createElement('div');
+  group.className = 'loc-branch-group';
+  group.dataset.branch = branch;
+  group.innerHTML = `
+    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+      🏢 ${escHtml(branch)} <span class="text-gray-300 font-normal loc-branch-count">(0)</span>
+    </h4>
+    <div class="space-y-2 loc-branch-list"></div>`;
+  return group;
+}
+function buildLocRow(loc) {
+  const isActive = loc.is_active == 1;
+  const div = document.createElement('div');
+  div.className = 'flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5';
+  div.id = 'loc-row-'+loc.id;
+  div.innerHTML = `
+    <span class="text-sm font-medium text-gray-700" id="loc-name-${loc.id}">📍 ${escHtml(fmtLocName(loc.name))}</span>
+    <div class="flex items-center gap-2">
+      <span id="loc-status-${loc.id}" class="text-xs font-semibold px-2 py-0.5 rounded-full ${isActive?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}">${isActive?'● Active':'● Hidden'}</span>
+      <button onclick="openEditLocModal(${escAttr(JSON.stringify(loc))})" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 px-2 py-1 rounded-lg transition">✏️ Edit</button>
+      <button onclick="ajaxToggleLocation(${loc.id})" id="loc-toggle-${loc.id}" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition">${isActive?'🙈 Hide':'👁 Show'}</button>
+      <button onclick="ajaxDeleteLocation(${loc.id},'${escHtml(loc.name)}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded-lg transition">🗑</button>
+    </div>`;
+  return div;
+}
 function updateLocCount() {
-  const rows = document.querySelectorAll('#locList > div');
+  const rows = document.querySelectorAll('.loc-branch-list > div');
+  const n = rows.length;
   const c = document.getElementById('locCount');
-  if (c) { const n = rows.length; c.textContent = `${n} location${n!==1?'s':''} total`; }
+  if (c) c.textContent = `${n} location${n!==1?'s':''} total`;
+  if (n === 0) {
+    document.getElementById('locGroups')?.remove();
+    c?.remove();
+    if (!document.getElementById('locEmptyState')) {
+      const wrap = document.getElementById('locListWrap');
+      const empty = document.createElement('div');
+      empty.id = 'locEmptyState';
+      empty.className = 'text-center py-12 text-gray-400';
+      empty.innerHTML = `<div class="text-5xl mb-3">📍</div><p class="font-medium">No locations yet.</p><p class="text-xs mt-1">Use the form above to add your first location.</p>`;
+      wrap.appendChild(empty);
+    }
+    syncBranchDropdown();
+  }
 }
 
 // ── AJAX: Add location ─────────────────────────────────
@@ -1014,8 +1150,8 @@ document.getElementById('addLocForm').addEventListener('submit', async function(
     if (data.success && data.location) {
       appendNewLocation(data.location);
       this.reset();
+      onBranchSelectChange(document.getElementById('addLocBranch'), document.getElementById('addLocBranchNew'));
       showToast('✅ Location added successfully');
-      updateLocCount();
     } else {
       showToast('⚠️ ' + (data.message||'Failed to add'), 'bg-red-600');
     }
@@ -1027,36 +1163,17 @@ document.getElementById('addLocForm').addEventListener('submit', async function(
 });
 
 function appendNewLocation(loc) {
-  document.getElementById('locEmptyState')?.remove();
-
-  let list = document.getElementById('locList');
-  if (!list) {
-    // First location ever added — build the wrapper that normally comes from PHP
-    const wrap = document.getElementById('locListWrap');
-    list = document.createElement('div');
-    list.className = 'space-y-2';
-    list.id = 'locList';
-    wrap.appendChild(list);
-    const p = document.createElement('p');
-    p.className = 'text-xs text-gray-400 mt-3 text-right mono';
-    p.id = 'locCount';
-    wrap.appendChild(p);
-  }
-
-  const isActive = loc.is_active == 1;
+  const wrap = ensureGroupsWrap();
   const branch = loc.branch || 'Main Campus';
-  const div = document.createElement('div');
-  div.className = 'flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5';
-  div.id = 'loc-row-'+loc.id;
-  div.innerHTML = `
-    <span class="text-sm font-medium text-gray-700" id="loc-name-${loc.id}">📍 ${escHtml(fmtLocName(loc.name))} <span class="text-xs text-gray-400 font-normal ml-1" id="loc-branch-${loc.id}">— ${escHtml(branch)}</span></span>
-    <div class="flex items-center gap-2">
-      <span id="loc-status-${loc.id}" class="text-xs font-semibold px-2 py-0.5 rounded-full ${isActive?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}">${isActive?'● Active':'● Hidden'}</span>
-      <button onclick="openEditLocModal(${escAttr(JSON.stringify(loc))})" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 px-2 py-1 rounded-lg transition">✏️ Edit</button>
-      <button onclick="ajaxToggleLocation(${loc.id})" id="loc-toggle-${loc.id}" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition">${isActive?'🙈 Hide':'👁 Show'}</button>
-      <button onclick="ajaxDeleteLocation(${loc.id},'${escHtml(loc.name)}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded-lg transition">🗑</button>
-    </div>`;
-  list.appendChild(div);
+  let group = findBranchGroup(branch);
+  if (!group) {
+    group = buildBranchGroup(branch);
+    wrap.appendChild(group);
+  }
+  group.querySelector('.loc-branch-list').appendChild(buildLocRow(loc));
+  refreshGroupCount(group);
+  updateLocCount();
+  syncBranchDropdown();
 }
 
 // ── AJAX: Toggle location active ───────────────────────
@@ -1103,9 +1220,20 @@ async function ajaxDeleteLocation(id, name) {
 
     if (data.success) {
       const el = document.getElementById('loc-row-'+id);
-      if (el) { el.style.transition='opacity 0.3s'; el.style.opacity='0'; setTimeout(()=>el.remove(), 300); }
+      const group = el ? el.closest('.loc-branch-group') : null;
+      if (el) {
+        el.style.transition='opacity 0.3s'; el.style.opacity='0';
+        setTimeout(() => {
+          el.remove();
+          if (group) {
+            refreshGroupCount(group);
+            if (!group.querySelector('.loc-branch-list > div')) group.remove();
+          }
+          updateLocCount();
+          syncBranchDropdown();
+        }, 300);
+      }
       showToast('🗑 Location deleted', 'bg-gray-700');
-      setTimeout(updateLocCount, 350);
     } else {
       showToast('⚠️ ' + (data.message||'Failed to delete'), 'bg-red-600');
     }
@@ -1116,9 +1244,17 @@ async function ajaxDeleteLocation(id, name) {
 
 // ── Edit Location Modal ─────────────────────────────────
 function openEditLocModal(loc) {
-  document.getElementById('editLoc_id').value     = loc.id;
-  document.getElementById('editLoc_name').value   = fmtLocName(loc.name);
-  document.getElementById('editLoc_branch').value = loc.branch || 'Main Campus';
+  document.getElementById('editLoc_id').value   = loc.id;
+  document.getElementById('editLoc_name').value = fmtLocName(loc.name);
+
+  const branchSelect = document.getElementById('editLocBranch');
+  const branchNew     = document.getElementById('editLocBranchNew');
+  buildBranchOptions(branchSelect, loc.branch || 'Main Campus');
+  branchSelect.name = 'branch';
+  branchNew.classList.add('hidden');
+  branchNew.required = false;
+  branchNew.removeAttribute('name');
+
   document.getElementById('editLocError').classList.add('hidden');
   document.getElementById('editLocSaveText').textContent = '💾 Save Changes';
   document.getElementById('editLocSpinner').classList.add('hidden');
@@ -1165,16 +1301,32 @@ document.getElementById('editLocForm').addEventListener('submit', async function
 });
 
 function updateLocationInDOM(loc) {
-  const nameEl   = document.getElementById('loc-name-'+loc.id);
-  const branchEl = document.getElementById('loc-branch-'+loc.id);
-  if (nameEl && nameEl.childNodes[0]) nameEl.childNodes[0].textContent = '📍 ' + fmtLocName(loc.name) + ' ';
-  if (branchEl) branchEl.textContent = '— ' + (loc.branch || 'Main Campus');
-
   const row = document.getElementById('loc-row-'+loc.id);
-  if (row) {
-    const editBtn = row.querySelector('button[onclick^="openEditLocModal"]');
-    if (editBtn) editBtn.setAttribute('onclick', `openEditLocModal(${escAttr(JSON.stringify(loc))})`);
+  if (!row) return;
+
+  const nameEl = document.getElementById('loc-name-'+loc.id);
+  if (nameEl) nameEl.textContent = '📍 ' + fmtLocName(loc.name);
+
+  const editBtn = row.querySelector('button[onclick^="openEditLocModal"]');
+  if (editBtn) editBtn.setAttribute('onclick', `openEditLocModal(${escAttr(JSON.stringify(loc))})`);
+
+  const branch = loc.branch || 'Main Campus';
+  const currentGroup = row.closest('.loc-branch-group');
+  if (!currentGroup || currentGroup.dataset.branch !== branch) {
+    const wrap = ensureGroupsWrap();
+    let target = findBranchGroup(branch);
+    if (!target) {
+      target = buildBranchGroup(branch);
+      wrap.appendChild(target);
+    }
+    target.querySelector('.loc-branch-list').appendChild(row);
+    refreshGroupCount(target);
+    if (currentGroup) {
+      refreshGroupCount(currentGroup);
+      if (!currentGroup.querySelector('.loc-branch-list > div')) currentGroup.remove();
+    }
   }
+  syncBranchDropdown();
 }
 
 // ── Incident filters ──────────────────────────────────
