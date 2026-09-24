@@ -27,10 +27,11 @@ try {
     ]);
 
     $rows = $pdo->query("
-        SELECT category, name, number, address, description
-        FROM emergency_services
-        WHERE is_active = 1
-        ORDER BY category, sort_order, id
+        SELECT ec.slug AS category, es.name, es.number, es.address, es.description
+        FROM emergency_services es
+        JOIN emergency_categories ec ON ec.id = es.category_id
+        WHERE es.is_active = 1
+        ORDER BY ec.sort_order, es.sort_order, es.id
     ")->fetchAll();
 
     $grouped = [];

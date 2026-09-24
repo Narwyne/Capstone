@@ -53,17 +53,36 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
 
+    // Resolve the FK counterparts. Medai doesn't validate location against
+    // the admin-managed list as strictly as the report modal does, so a
+    // miss here just leaves location_id NULL — the text still saves fine.
+    $location_id = null;
+    try {
+        $locStmt = $pdo->prepare("SELECT id FROM locations WHERE name = ? AND is_active = 1");
+        $locStmt->execute([$location]);
+        $found = $locStmt->fetchColumn();
+        if ($found) $location_id = (int)$found;
+    } catch (PDOException $e) { /* locations table unavailable — ignore */ }
+
+    $reported_by_user_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+
     $stmt = $pdo->prepare("
-        INSERT INTO incidents (incident_type, severity, location, description, reported_by, status, reported_at)
-        VALUES (:type, :severity, :location, :description, :reported_by, 'open', NOW())
+        INSERT INTO incidents
+            (incident_type, severity, location, location_id, description,
+             reported_by, reported_by_user_id, status, reported_at)
+        VALUES
+            (:type, :severity, :location, :location_id, :description,
+             :reported_by, :reported_by_user_id, 'open', NOW())
     ");
 
     $stmt->execute([
-        ':type'        => $type,
-        ':severity'    => $severity,
-        ':location'    => $location,
-        ':description' => $description,
-        ':reported_by' => $_SESSION['user'],
+        ':type'                => $type,
+        ':severity'            => $severity,
+        ':location'            => $location,
+        ':location_id'         => $location_id,
+        ':description'         => $description,
+        ':reported_by'         => $_SESSION['user'],
+        ':reported_by_user_id' => $reported_by_user_id,
     ]);
 
     echo json_encode(['success' => true, 'message' => 'Incident reported successfully.']);

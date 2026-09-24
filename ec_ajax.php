@@ -29,6 +29,16 @@ try {
 
 $action = $_POST['action'] ?? '';
 
+// category is now a FK (category_id -> emergency_categories). The
+// dropdown only ever sends one of these five slugs, so a lookup by
+// slug is enough — no need to create rows on the fly like locations.
+function categoryIdBySlug(PDO $pdo, string $slug): ?int {
+    $stmt = $pdo->prepare("SELECT id FROM emergency_categories WHERE slug = ?");
+    $stmt->execute([$slug]);
+    $id = $stmt->fetchColumn();
+    return $id ? (int)$id : null;
+}
+
 // ── Toggle active ─────────────────────────────────────
 if ($action === 'toggle_emergency') {
     $id = (int)($_POST['id'] ?? 0);
@@ -66,11 +76,18 @@ if ($action === 'add_emergency') {
     if (empty($name))   { echo json_encode(['success'=>false,'message'=>'Contact name is required']); exit(); }
     if (empty($number)) { echo json_encode(['success'=>false,'message'=>'Phone number is required']); exit(); }
 
-    $stmt = $pdo->prepare("INSERT INTO emergency_services (category,name,number,address,description,is_active,sort_order) VALUES (?,?,?,?,?,1,0)");
-    $stmt->execute([$category, $name, $number, $address, $description]);
+    $categoryId = categoryIdBySlug($pdo, $category);
+    if (!$categoryId) { echo json_encode(['success'=>false,'message'=>'Unknown category']); exit(); }
+
+    $stmt = $pdo->prepare("INSERT INTO emergency_services (category_id,name,number,address,description,is_active,sort_order) VALUES (?,?,?,?,?,1,0)");
+    $stmt->execute([$categoryId, $name, $number, $address, $description]);
     $newId = $pdo->lastInsertId();
 
-    $row = $pdo->prepare("SELECT * FROM emergency_services WHERE id=?");
+    $row = $pdo->prepare("
+        SELECT es.*, ec.slug AS category
+        FROM emergency_services es JOIN emergency_categories ec ON ec.id = es.category_id
+        WHERE es.id=?
+    ");
     $row->execute([$newId]);
     $contact = $row->fetch();
 
@@ -93,10 +110,17 @@ if ($action === 'edit_emergency') {
     if (empty($name))   { echo json_encode(['success'=>false,'message'=>'Contact name is required']); exit(); }
     if (empty($number)) { echo json_encode(['success'=>false,'message'=>'Phone number is required']); exit(); }
 
-    $stmt = $pdo->prepare("UPDATE emergency_services SET category=?,name=?,number=?,address=?,description=? WHERE id=?");
-    $stmt->execute([$category, $name, $number, $address, $description, $id]);
+    $categoryId = categoryIdBySlug($pdo, $category);
+    if (!$categoryId) { echo json_encode(['success'=>false,'message'=>'Unknown category']); exit(); }
 
-    $row = $pdo->prepare("SELECT * FROM emergency_services WHERE id=?");
+    $stmt = $pdo->prepare("UPDATE emergency_services SET category_id=?,name=?,number=?,address=?,description=? WHERE id=?");
+    $stmt->execute([$categoryId, $name, $number, $address, $description, $id]);
+
+    $row = $pdo->prepare("
+        SELECT es.*, ec.slug AS category
+        FROM emergency_services es JOIN emergency_categories ec ON ec.id = es.category_id
+        WHERE es.id=?
+    ");
     $row->execute([$id]);
     $contact = $row->fetch();
 

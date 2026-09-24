@@ -23,9 +23,17 @@ function riskLevelFor(float $score): array {
 
 function fetchScoredIncidents(PDO $pdo): array {
     $cutoff = date('Y-m-d H:i:s', strtotime('-' . RISK_LOOKBACK_DAYS . ' days'));
+    // location is COALESCEd: prefer the live name via location_id, fall
+    // back to the point-in-time text snapshot if that location was since
+    // renamed or deleted.
     $stmt = $pdo->prepare("
-        SELECT incident_type, severity, location, status, reported_at
-        FROM incidents WHERE reported_at >= :cutoff
+        SELECT
+            i.incident_type, i.severity,
+            COALESCE(loc.name, i.location) AS location,
+            i.status, i.reported_at
+        FROM incidents i
+        LEFT JOIN locations loc ON loc.id = i.location_id
+        WHERE i.reported_at >= :cutoff
     ");
     $stmt->execute([':cutoff' => $cutoff]);
     $rows = $stmt->fetchAll();

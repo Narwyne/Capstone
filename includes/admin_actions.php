@@ -40,9 +40,19 @@ if ($action === 'delete_user' && isset($_POST['id'])) {
 // ── Emergency contact actions (fallback form-based, AJAX handled by ec_ajax.php) ──
 
 if ($action === 'add_emergency') {
-    $pdo->prepare("INSERT INTO emergency_services (category,name,number,address,description,is_active,sort_order) VALUES (?,?,?,?,?,1,0)")
+    $categorySlug = $_POST['category'] ?? 'other';
+    $catStmt = $pdo->prepare("SELECT id FROM emergency_categories WHERE slug = ?");
+    $catStmt->execute([$categorySlug]);
+    $categoryId = $catStmt->fetchColumn();
+    if (!$categoryId) {
+        // Unknown slug — fall back to "other" rather than failing the insert
+        $catStmt->execute(['other']);
+        $categoryId = $catStmt->fetchColumn();
+    }
+
+    $pdo->prepare("INSERT INTO emergency_services (category_id,name,number,address,description,is_active,sort_order) VALUES (?,?,?,?,?,1,0)")
         ->execute([
-            $_POST['category']        ?? 'other',
+            $categoryId,
             trim($_POST['ec_name']         ?? ''),
             trim($_POST['number']          ?? ''),
             trim($_POST['address']         ?? ''),

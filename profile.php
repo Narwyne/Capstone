@@ -30,12 +30,20 @@ if (!$user) {
 }
 
 // ── Fetch this user's incident reports ────────────────────────────
+// NOTE: this used to filter on the text `reported_by` column against
+// $_SESSION['user_id'] (a number) — a varchar-vs-int comparison that
+// never actually matched, so this list was silently always empty.
+// Now that incidents carry a real reported_by_user_id FK, this works.
 if ($pdo) {
     $stmt = $pdo->prepare("
-        SELECT id, incident_type, severity, location, status, reported_at
-        FROM incidents
-        WHERE reported_by = ?
-        ORDER BY reported_at DESC
+        SELECT
+            i.id, i.incident_type, i.severity,
+            COALESCE(loc.name, i.location) AS location,
+            i.status, i.reported_at
+        FROM incidents i
+        LEFT JOIN locations loc ON loc.id = i.location_id
+        WHERE i.reported_by_user_id = ?
+        ORDER BY i.reported_at DESC
         LIMIT 10
     ");
     $stmt->execute([$_SESSION['user_id']]);

@@ -24,6 +24,20 @@ function slugify(string $s): string {
     return trim(strtolower(preg_replace('/[^a-z0-9]+/i', '_', $s)), '_');
 }
 
+// Branch is now a FK (branch_id -> branches). Unlike emergency
+// categories, branches are open-ended — the admin UI lets you type a
+// brand new one — so we look it up by name and create it if it's new.
+function resolveBranchId(PDO $pdo, string $branchName): int {
+    $branchName = trim($branchName) ?: 'Main Campus';
+    $stmt = $pdo->prepare("SELECT id FROM branches WHERE name = ?");
+    $stmt->execute([$branchName]);
+    $id = $stmt->fetchColumn();
+    if ($id) return (int)$id;
+
+    $pdo->prepare("INSERT INTO branches (name) VALUES (?)")->execute([$branchName]);
+    return (int)$pdo->lastInsertId();
+}
+
 // ── Add new ───────────────────────────────────────────
 if ($action === 'add_location') {
     $name   = trim($_POST['name']   ?? '');
@@ -34,16 +48,22 @@ if ($action === 'add_location') {
     $slug = slugify($name);
     if ($slug === '') { echo json_encode(['success'=>false,'message'=>'Invalid name']); exit(); }
 
+    $branchId = resolveBranchId($pdo, $branch);
+
     try {
-        $pdo->prepare("INSERT INTO locations (name,branch,is_active,sort_order) VALUES (?,?,1,0)")
-            ->execute([$slug, $branch]);
+        $pdo->prepare("INSERT INTO locations (name,branch_id,is_active,sort_order) VALUES (?,?,1,0)")
+            ->execute([$slug, $branchId]);
     } catch (PDOException $e) {
         echo json_encode(['success'=>false,'message'=>'That location already exists']);
         exit();
     }
 
     $newId = $pdo->lastInsertId();
-    $row = $pdo->prepare("SELECT * FROM locations WHERE id=?");
+    $row = $pdo->prepare("
+        SELECT l.*, b.name AS branch
+        FROM locations l JOIN branches b ON b.id = l.branch_id
+        WHERE l.id=?
+    ");
     $row->execute([$newId]);
     echo json_encode(['success' => true, 'location' => $row->fetch()]);
     exit();
@@ -63,7 +83,8 @@ if ($action === 'edit_location') {
 
     try {
         if ($branch !== '') {
-            $pdo->prepare("UPDATE locations SET name=?, branch=? WHERE id=?")->execute([$slug, $branch, $id]);
+            $branchId = resolveBranchId($pdo, $branch);
+            $pdo->prepare("UPDATE locations SET name=?, branch_id=? WHERE id=?")->execute([$slug, $branchId, $id]);
         } else {
             $pdo->prepare("UPDATE locations SET name=? WHERE id=?")->execute([$slug, $id]);
         }
@@ -72,7 +93,11 @@ if ($action === 'edit_location') {
         exit();
     }
 
-    $row = $pdo->prepare("SELECT * FROM locations WHERE id=?");
+    $row = $pdo->prepare("
+        SELECT l.*, b.name AS branch
+        FROM locations l JOIN branches b ON b.id = l.branch_id
+        WHERE l.id=?
+    ");
     $row->execute([$id]);
     echo json_encode(['success' => true, 'location' => $row->fetch()]);
     exit();

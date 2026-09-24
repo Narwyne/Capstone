@@ -36,11 +36,19 @@ try {
         ORDER BY incident_type
     ")->fetchAll();
 
-    // Last 5 open incidents — minimal fields only
+    // Last 5 open incidents — minimal fields only.
+    // location is COALESCEd: prefer the live name via location_id, fall
+    // back to the point-in-time text snapshot if that location was since
+    // renamed or deleted.
     $recent = $pdo->query("
-        SELECT incident_type, severity, location, reported_at
-        FROM incidents WHERE status='open'
-        ORDER BY reported_at DESC LIMIT 5
+        SELECT
+            i.incident_type, i.severity,
+            COALESCE(loc.name, i.location) AS location,
+            i.reported_at
+        FROM incidents i
+        LEFT JOIN locations loc ON loc.id = i.location_id
+        WHERE i.status='open'
+        ORDER BY i.reported_at DESC LIMIT 5
     ")->fetchAll();
 
     echo json_encode([

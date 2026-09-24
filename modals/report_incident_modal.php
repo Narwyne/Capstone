@@ -8,14 +8,16 @@
 // Branch → room map, built from admin-managed locations.
 // $pdo is expected to already be set by the page that includes this modal
 // (e.g. dashboard.php). Falls back to a single "Main Campus" branch with
-// the old static room list if the table/column isn't there yet.
+// the old static room list if the tables aren't there yet.
 $branchLocations = [];
 if (isset($pdo) && $pdo) {
     try {
         $rows = $pdo->query("
-            SELECT name, branch FROM locations
-            WHERE is_active = 1
-            ORDER BY branch, sort_order, name
+            SELECT l.name, b.name AS branch
+            FROM locations l
+            JOIN branches b ON b.id = l.branch_id
+            WHERE l.is_active = 1
+            ORDER BY b.name, l.sort_order, l.name
         ")->fetchAll();
         foreach ($rows as $r) {
             $b = $r['branch'] ?: 'Main Campus';

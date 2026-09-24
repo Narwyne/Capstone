@@ -42,10 +42,17 @@ if ($pdo) {
     $resolved         = $pdo->query("SELECT COUNT(*) FROM incidents WHERE status='resolved'")->fetchColumn();
     $high_risk        = $pdo->query("SELECT COUNT(*) FROM incidents WHERE severity IN ('high','critical') AND status='open'")->fetchColumn();
 
+    // location is COALESCEd: prefer the live name via location_id, fall
+    // back to the point-in-time text snapshot if that location was since
+    // renamed or deleted.
     $recent_incidents = $pdo->query("
-        SELECT incident_type, severity, location, description, reported_at, status
-        FROM incidents
-        ORDER BY reported_at DESC
+        SELECT
+            i.incident_type, i.severity,
+            COALESCE(loc.name, i.location) AS location,
+            i.description, i.reported_at, i.status
+        FROM incidents i
+        LEFT JOIN locations loc ON loc.id = i.location_id
+        ORDER BY i.reported_at DESC
         LIMIT 5
     ")->fetchAll();
 }

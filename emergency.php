@@ -29,9 +29,12 @@ try {
 $grouped = [];
 if ($pdo) {
     $rows = $pdo->query("
-        SELECT * FROM emergency_services
-        WHERE is_active = 1
-        ORDER BY category, sort_order, id
+        SELECT es.id, ec.slug AS category, es.name, es.number, es.address, es.description,
+               es.is_active, es.sort_order, es.created_at
+        FROM emergency_services es
+        JOIN emergency_categories ec ON ec.id = es.category_id
+        WHERE es.is_active = 1
+        ORDER BY ec.sort_order, es.sort_order, es.id
     ")->fetchAll();
 
     foreach ($rows as $row) {

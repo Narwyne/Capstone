@@ -32,21 +32,32 @@ $description   = trim($_POST['description']   ?? '');
 $anonymous     = isset($_POST['anonymous']) && $_POST['anonymous'] == '1';
 $reported_by   = $anonymous ? 'Anonymous' : $_SESSION['user'];
 
+// The FK counterpart to $reported_by. Anonymous reports intentionally
+// have no user link (that's the point of "anonymous").
+$reported_by_user_id = $anonymous ? null : (int)($_SESSION['user_id'] ?? 0) ?: null;
+
 // Validate required fields
 $allowed_types      = ['fire','medical','accident','suspicious','theft','flooding','earthquake','other'];
 $allowed_severities = ['low','medium','high','critical'];
 
-// Locations are now admin-managed. Pull the active list from the DB;
-// fall back to the old static list if the table isn't there yet.
+// Locations are admin-managed. Pull id+name pairs so we can both
+// validate the submission AND resolve the FK for the new row.
+// Falls back to the old static list (no id available) if the table
+// isn't there yet.
+$locationMap = [];
 try {
-    $allowed_locations = $pdo->query("SELECT name FROM locations WHERE is_active=1")->fetchAll(PDO::FETCH_COLUMN);
+    $locRows = $pdo->query("SELECT id, name FROM locations WHERE is_active=1")->fetchAll();
+    foreach ($locRows as $r) $locationMap[$r['name']] = (int)$r['id'];
 } catch (PDOException $e) {
-    $allowed_locations = [];
+    $locationMap = [];
 }
-if (empty($allowed_locations)) {
-    $allowed_locations = ['engineering','admin','library','cafeteria','gymnasium','parking',
-                          'entrance','laboratory','clinic','comfort_room','grounds','other'];
+if (empty($locationMap)) {
+    foreach (['engineering','admin','library','cafeteria','gymnasium','parking',
+              'entrance','laboratory','clinic','comfort_room','grounds','other'] as $n) {
+        $locationMap[$n] = null;
+    }
 }
+$allowed_locations = array_keys($locationMap);
 
 $errors = [];
 if (!in_array($incident_type, $allowed_types))      $errors[] = 'Invalid incident type.';
@@ -58,6 +69,8 @@ if (!empty($errors)) {
     echo json_encode(['success' => false, 'message' => implode(' ', $errors)]);
     exit();
 }
+
+$location_id = $locationMap[$location] ?? null;
 
 // --- Handle optional photo upload ---
 $photo_path = null;
@@ -94,19 +107,23 @@ if (isset($_FILES['photo']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
 // --- Insert into DB ---
 try {
     $stmt = $pdo->prepare("
-        INSERT INTO incidents 
-            (incident_type, severity, location, description, reported_by, photo_path, reported_at)
-        VALUES 
-            (:incident_type, :severity, :location, :description, :reported_by, :photo_path, NOW())
+        INSERT INTO incidents
+            (incident_type, severity, location, location_id, description,
+             reported_by, reported_by_user_id, photo_path, reported_at)
+        VALUES
+            (:incident_type, :severity, :location, :location_id, :description,
+             :reported_by, :reported_by_user_id, :photo_path, NOW())
     ");
 
     $stmt->execute([
-        ':incident_type' => $incident_type,
-        ':severity'      => $severity,
-        ':location'      => $location,
-        ':description'   => $description,
-        ':reported_by'   => $reported_by,
-        ':photo_path'    => $photo_path,
+        ':incident_type'        => $incident_type,
+        ':severity'             => $severity,
+        ':location'             => $location,
+        ':location_id'          => $location_id,
+        ':description'          => $description,
+        ':reported_by'          => $reported_by,
+        ':reported_by_user_id'  => $reported_by_user_id,
+        ':photo_path'           => $photo_path,
     ]);
 
     $incident_id = $pdo->lastInsertId();
