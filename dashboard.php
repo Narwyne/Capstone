@@ -57,6 +57,20 @@ if ($pdo) {
     ")->fetchAll();
 }
 
+// ---- Campus risk snapshot (reuses risk_prediction.php's scoring engine) ----
+require_once 'includes/risk_engine.php';
+
+$campus_risk        = null;
+$top_risk_location  = null;
+
+if ($pdo) {
+    $scored       = fetchScoredIncidents($pdo);
+    $by_location  = computeLocationRisk($scored);
+    $campus_score = array_sum(array_column($by_location, 'score'));
+    $campus_risk  = riskLevelFor($campus_score);
+    $top_risk_location = $by_location[0] ?? null;
+}
+
 // ---- Helpers ----
 function typeIcon($t) {
     return ['fire'=>'🔥','medical'=>'🏥','accident'=>'⚠️','suspicious'=>'👁️',
@@ -72,6 +86,9 @@ function timeAgo($datetime) {
     if ($diff < 3600)   return floor($diff/60) . ' min ago';
     if ($diff < 86400)  return floor($diff/3600) . ' hr ago';
     return floor($diff/86400) . ' days ago';
+}
+function riskBadge($color, $label) {
+    return "<span class='inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-{$color}-100 text-{$color}-700'>{$label}</span>";
 }
 ?>
 <!DOCTYPE html>
@@ -186,12 +203,27 @@ function timeAgo($datetime) {
 <div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
 
   <!-- WELCOME BANNER -->
-  <div class="anim" style="animation-delay:0.05s">
-    <h2 class="text-xl font-bold text-gray-800">
-      Good <?= (date('H') < 12) ? 'morning' : ((date('H') < 18) ? 'afternoon' : 'evening') ?>,
-      <span class="text-red-600"><?= htmlspecialchars(explode(' ', $_SESSION['user'])[0]) ?></span> 👋
-    </h2>
-    <p class="text-sm text-gray-400 mt-0.5">Here's your campus safety overview for today.</p>
+  <div class="anim flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style="animation-delay:0.05s">
+    <div>
+      <h2 class="text-xl font-bold text-gray-800">
+        Good <?= (date('H') < 12) ? 'morning' : ((date('H') < 18) ? 'afternoon' : 'evening') ?>,
+        <span class="text-red-600"><?= htmlspecialchars(explode(' ', $_SESSION['user'])[0]) ?></span> 👋
+      </h2>
+      <p class="text-sm text-gray-400 mt-0.5">Here's your campus safety overview for today.</p>
+    </div>
+
+    <?php if ($campus_risk): ?>
+    <a href="risk_prediction.php"
+       class="flex items-center gap-2 bg-white border border-gray-100 rounded-2xl px-4 py-2.5 shadow-sm hover:shadow-md transition shrink-0">
+      <span class="text-xs text-gray-400">Campus Risk (90d)</span>
+      <?= riskBadge($campus_risk['color'], $campus_risk['label']) ?>
+      <?php if ($top_risk_location): ?>
+      <span class="text-xs text-gray-400 hidden sm:inline">
+        · highest: <?= htmlspecialchars(ucwords(str_replace('_',' ',$top_risk_location['location']))) ?>
+      </span>
+      <?php endif; ?>
+    </a>
+    <?php endif; ?>
   </div>
 
   <!-- QUICK ACTIONS -->
@@ -227,25 +259,33 @@ function timeAgo($datetime) {
   <!-- STAT CARDS -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3 anim" style="animation-delay:0.16s">
 
-    <div class="stat-card red bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Reports</p>
-      <p class="text-3xl font-bold text-red-600"><?= $total_reports ?></p>
-    </div>
+    <a href="incidents.php" class="block">
+      <div class="stat-card red bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Reports</p>
+        <p class="text-3xl font-bold text-red-600"><?= $total_reports ?></p>
+      </div>
+    </a>
 
-    <div class="stat-card amber bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Active</p>
-      <p class="text-3xl font-bold text-amber-500"><?= $active_incidents ?></p>
-    </div>
+    <a href="incidents.php?status=open" class="block">
+      <div class="stat-card amber bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Active</p>
+        <p class="text-3xl font-bold text-amber-500"><?= $active_incidents ?></p>
+      </div>
+    </a>
 
-    <div class="stat-card green bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Resolved</p>
-      <p class="text-3xl font-bold text-emerald-500"><?= $resolved ?></p>
-    </div>
+    <a href="incidents.php?status=resolved" class="block">
+      <div class="stat-card green bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Resolved</p>
+        <p class="text-3xl font-bold text-emerald-500"><?= $resolved ?></p>
+      </div>
+    </a>
 
-    <div class="stat-card orange bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">High Risk</p>
-      <p class="text-3xl font-bold text-orange-500"><?= $high_risk ?></p>
-    </div>
+    <a href="incidents.php?status=open&risk=high" class="block">
+      <div class="stat-card orange bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">High Risk</p>
+        <p class="text-3xl font-bold text-orange-500"><?= $high_risk ?></p>
+      </div>
+    </a>
 
   </div>
 

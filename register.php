@@ -53,99 +53,108 @@ if (isset($_POST['register'])) {
     }
 }
 ?>
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <style>
-        @keyframes scale {
-            from { transform: scale(0.8); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
-
-        .animate-scale {
-            animation: scale 0.2s ease;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register — ACLC Smart Campus</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'DM Sans',sans-serif;background:radial-gradient(circle at 20% 20%,#1c2b6e 0%,#0d1638 55%,#0a0f28 100%);}
+  .dotbg{background-image:radial-gradient(circle,rgba(255,255,255,.08) 1px,transparent 1px);background-size:18px 18px;}
+  @keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+  .animate-modal{animation:modalIn .2s ease-out;}
+  @keyframes floatUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+  .anim{animation:floatUp .5s ease both;}
+</style>
 </head>
+<body class="min-h-screen flex items-center justify-center p-4">
 
-<body class="bg-gray-100 flex items-center justify-center h-screen">
+<div class="w-full max-w-sm anim">
+  <div class="bg-white rounded-3xl shadow-2xl overflow-hidden">
 
-    <form method="POST" class="bg-white p-6 rounded shadow w-80">
+    <!-- BRAND BANNER -->
+    <div class="relative bg-gradient-to-br from-[#0d1a52] via-[#152875] to-[#1c3494] pt-8 pb-6 text-center dotbg">
+      <img src="assets/aclc_logo.webp" alt="ACLC College"
+           class="relative w-20 h-20 mx-auto rounded-full ring-4 ring-white shadow-lg bg-white object-cover">
+      <h1 class="relative text-white font-extrabold text-base mt-3 tracking-wide">ACLC COLLEGE</h1>
+      <p class="relative text-blue-200 text-[11px] uppercase tracking-[0.25em] mt-0.5">Tacloban City</p>
+    </div>
+    <div class="h-1.5 bg-gradient-to-r from-red-700 via-red-500 to-red-700"></div>
 
-        <h2 class="text-xl font-bold mb-4 text-center text-red-600">Register</h2>
+    <!-- FORM -->
+    <div class="px-7 pt-6 pb-7">
+      <h2 class="text-xl font-bold text-gray-800">Create Account</h2>
+      <p class="text-xs text-gray-400 mb-5">Join Smart Campus</p>
 
-        <!-- First Name -->
-        <input type="text" name="first_name" placeholder="First Name" required class="w-full mb-3 p-2 border rounded">
+      <form method="POST" class="space-y-3">
 
-        <!-- Middle Name -->
-        <input type="text" name="middle_name" placeholder="Middle Name (optional)" class="w-full mb-3 p-2 border rounded">
+        <div class="grid grid-cols-2 gap-2">
+          <input type="text" name="first_name" placeholder="First Name" required
+            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1c3494]/30 focus:border-[#1c3494]">
+          <input type="text" name="last_name" placeholder="Last Name" required
+            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1c3494]/30 focus:border-[#1c3494]">
+        </div>
 
-        <!-- Last Name -->
-        <input type="text" name="last_name" placeholder="Last Name" required class="w-full mb-3 p-2 border rounded">
+        <input type="text" name="middle_name" placeholder="Middle Name (optional)"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1c3494]/30 focus:border-[#1c3494]">
 
-        <!-- Email -->
-        <input type="email" name="email" placeholder="Email" required class="w-full mb-3 p-2 border rounded">
+        <input type="email" name="email" placeholder="Email" required
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1c3494]/30 focus:border-[#1c3494]">
 
-        <!-- Password -->
-        <input type="password" name="password" placeholder="Password" minlength="6" required class="w-full mb-1 p-2 border rounded">
+        <div>
+          <input type="password" name="password" placeholder="Password" minlength="6" required
+            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1c3494]/30 focus:border-[#1c3494]">
+          <p class="text-[11px] text-gray-400 mt-1">Must be at least 6 characters</p>
+        </div>
 
-        <p class="text-xs text-gray-500 mb-3">
-            Password must be at least 6 characters
-        </p>
-
-        <!-- Register Button -->
-        <button name="register" class="w-full bg-red-600 text-white p-2 rounded">
-            Register
+        <button name="register"
+          class="w-full text-white font-semibold text-sm py-2.5 rounded-xl mt-2 shadow-md transition hover:opacity-90"
+          style="background:linear-gradient(90deg,#152875,#b91c1c);">
+          Register
         </button>
+      </form>
 
-        <!-- Login -->
-        <p class="text-sm mt-3 text-center">
-            Already have an account?
-            <a href="login.php" class="text-red-600">Login</a>
-        </p>
+      <p class="text-xs mt-5 text-center text-gray-400">
+        Already have an account?
+        <a href="login.php" class="text-red-600 font-semibold hover:underline">Login</a>
+      </p>
+    </div>
+  </div>
+</div>
 
-    </form>
+<!-- ERROR -->
+<?php if (!empty($error)): ?>
+<div id="errorModal" class="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 text-center animate-modal">
+    <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-2xl mx-auto mb-2">⚠️</div>
+    <h2 class="text-lg font-bold text-gray-800 mb-1">Error</h2>
+    <p class="text-sm text-gray-500 mb-4"><?php echo $error; ?></p>
+    <button onclick="this.closest('#errorModal').remove()"
+      class="text-white px-5 py-2 rounded-xl text-sm font-semibold" style="background:#b91c1c;">
+      OK
+    </button>
+  </div>
+</div>
+<?php endif; ?>
 
-    <!-- ERROR -->
-    <?php if (!empty($error)): ?>
-        <div class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-            <div class="bg-white p-6 rounded-xl shadow w-80 text-center animate-scale">
-
-                <h2 class="text-lg font-bold text-red-600 mb-3">Error</h2>
-
-                <p class="mb-4"><?php echo $error; ?></p>
-
-                <button onclick="this.parentElement.parentElement.remove()"
-                        class="bg-red-600 text-white px-4 py-2 rounded">
-                    OK
-                </button>
-
-            </div>
-        </div>
-    <?php endif; ?>
-
-    <!-- SUCCESS -->
-    <?php if (!empty($success)): ?>
-        <div class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-            <div class="bg-white p-6 rounded-xl shadow w-80 text-center animate-scale">
-
-                <h2 class="text-lg font-bold text-green-600 mb-3">Success</h2>
-
-                <p class="mb-4"><?php echo $success; ?></p>
-
-                <a href="login.php"
-                   class="bg-green-600 text-white px-4 py-2 rounded">
-                    Go to Login
-                </a>
-
-            </div>
-        </div>
-    <?php endif; ?>
+<!-- SUCCESS -->
+<?php if (!empty($success)): ?>
+<div id="successModal" class="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 text-center animate-modal">
+    <div class="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl mx-auto mb-2">✅</div>
+    <h2 class="text-lg font-bold text-gray-800 mb-1">Success</h2>
+    <p class="text-sm text-gray-500 mb-4"><?php echo $success; ?></p>
+    <a href="login.php"
+       class="inline-block text-white px-5 py-2 rounded-xl text-sm font-semibold" style="background:#152875;">
+      Go to Login
+    </a>
+  </div>
+</div>
+<?php endif; ?>
 
 </body>
 </html>

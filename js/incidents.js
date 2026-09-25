@@ -12,6 +12,7 @@ const CHIP_LABELS = {
 };
 
 let debounceTimer = null;
+let riskOnly       = false; // true = severity in (high, critical) — set via ?risk=high, since the dropdown can only match one severity at a time
 
 // ── Debounced search input ─────────────────────────────────────────
 function onSearchInput() {
@@ -53,11 +54,12 @@ function filterCards() {
     const matchQ = words.every(w =>
       type.includes(w) || location.includes(w) || reporter.includes(w) || desc.includes(w)
     );
-    const matchSev = !sev || severity === sev;
-    const matchSta = !sta || status   === sta;
-    const matchTyp = !typ || type     === typ;
+    const matchSev  = !sev || severity === sev;
+    const matchSta  = !sta || status   === sta;
+    const matchTyp  = !typ || type     === typ;
+    const matchRisk = !riskOnly || severity === 'high' || severity === 'critical';
 
-    const show = matchQ && matchSev && matchSta && matchTyp;
+    const show = matchQ && matchSev && matchSta && matchTyp && matchRisk;
     card.style.display = show ? '' : 'none';
     if (show) visible++;
 
@@ -73,7 +75,7 @@ function filterCards() {
   });
   visibleCards.forEach(card => list.appendChild(card));
 
-  updateCount(visible, cards.length, q || sev || sta || typ);
+  updateCount(visible, cards.length, q || sev || sta || typ || riskOnly);
   updateChips(q, sev, sta, typ);
 }
 
@@ -129,6 +131,8 @@ function updateChips(q, sev, sta, typ) {
     clear: () => { document.getElementById('statusFilter').value = ''; filterCards(); } });
   if (typ) chips.push({ label: CHIP_LABELS.typeFilter[typ] || typ,
     clear: () => { document.getElementById('typeFilter').value = ''; filterCards(); } });
+  if (riskOnly) chips.push({ label: '🚨 High Risk',
+    clear: () => { riskOnly = false; filterCards(); } });
 
   chips.forEach(chip => {
     const span = document.createElement('span');
@@ -150,8 +154,36 @@ function clearFilters() {
   document.getElementById('typeFilter').value     = '';
   document.getElementById('sortOrder').value      = 'newest';
   document.getElementById('clearSearchBtn').classList.add('hidden');
+  riskOnly = false;
   filterCards();
 }
+
+// ── URL-based filter init (used by dashboard quick-link cards) ─────
+// Supports: incidents.php?status=open, ?severity=critical, ?type=fire,
+// and ?risk=high (severity high+critical combined — no single dropdown
+// option covers that, so it's handled as its own flag instead).
+function initFiltersFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const sta  = params.get('status');
+  const sev  = params.get('severity');
+  const typ  = params.get('type');
+  const risk = params.get('risk');
+  let apply = false;
+
+  const staEl = document.getElementById('statusFilter');
+  if (sta && staEl.querySelector(`option[value="${sta}"]`)) { staEl.value = sta; apply = true; }
+
+  const sevEl = document.getElementById('severityFilter');
+  if (sev && sevEl.querySelector(`option[value="${sev}"]`)) { sevEl.value = sev; apply = true; }
+
+  const typEl = document.getElementById('typeFilter');
+  if (typ && typEl.querySelector(`option[value="${typ}"]`)) { typEl.value = typ; apply = true; }
+
+  if (risk === 'high') { riskOnly = true; apply = true; }
+
+  if (apply) filterCards();
+}
+document.addEventListener('DOMContentLoaded', initFiltersFromURL);
 
 // ── Photo lightbox ────────────────────────────────────────────────
 function showPhoto(src, caption) {
