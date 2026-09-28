@@ -57,20 +57,6 @@ if ($pdo) {
     ")->fetchAll();
 }
 
-// ---- Campus risk snapshot (reuses risk_prediction.php's scoring engine) ----
-require_once 'includes/risk_engine.php';
-
-$campus_risk        = null;
-$top_risk_location  = null;
-
-if ($pdo) {
-    $scored       = fetchScoredIncidents($pdo);
-    $by_location  = computeLocationRisk($scored);
-    $campus_score = array_sum(array_column($by_location, 'score'));
-    $campus_risk  = riskLevelFor($campus_score);
-    $top_risk_location = $by_location[0] ?? null;
-}
-
 // ---- Helpers ----
 function typeIcon($t) {
     return ['fire'=>'🔥','medical'=>'🏥','accident'=>'⚠️','suspicious'=>'👁️',
@@ -86,9 +72,6 @@ function timeAgo($datetime) {
     if ($diff < 3600)   return floor($diff/60) . ' min ago';
     if ($diff < 86400)  return floor($diff/3600) . ' hr ago';
     return floor($diff/86400) . ' days ago';
-}
-function riskBadge($color, $label) {
-    return "<span class='inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-{$color}-100 text-{$color}-700'>{$label}</span>";
 }
 ?>
 <!DOCTYPE html>
@@ -163,38 +146,42 @@ function riskBadge($color, $label) {
 <!-- ============================================================
      NAVBAR
      ============================================================ -->
-<nav class="bg-red-700 text-white sticky top-0 z-40 shadow-lg nav-anim">
-  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+<nav class="sticky top-0 z-40 shadow-lg nav-anim" style="background:linear-gradient(90deg,#0d1a52,#152875 60%,#1c3494);">
+  <div class="max-w-6xl mx-auto px-4 py-2.5 flex items-center justify-between text-white">
 
-    <div>
-      <span class="text-xs text-red-300 uppercase tracking-widest block leading-none">ACLC Smart Campus</span>
-      <span class="font-bold text-lg leading-tight">Dashboard</span>
+    <div class="flex items-center gap-3">
+      <img src="assets/aclc_logo.webp" alt="ACLC College" class="w-9 h-9 rounded-full ring-2 ring-white/40 bg-white object-cover shrink-0">
+      <div>
+        <span class="text-xs text-blue-200 uppercase tracking-widest block leading-none">ACLC Smart Campus</span>
+        <span class="font-bold text-lg leading-tight">Dashboard</span>
+      </div>
     </div>
 
     <div class="flex items-center gap-2">
-      <a href="profile.php" class="hidden sm:flex items-center gap-1.5 text-red-200 hover:text-white text-sm transition">
+      <a href="profile.php" class="hidden sm:flex items-center gap-1.5 text-blue-200 hover:text-white text-sm transition">
         👤 <?= htmlspecialchars($_SESSION['user']) ?>
       </a>
 
       <?php if ($_SESSION['role'] === 'admin'): ?>
         <a href="admin.php"
-           class="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
+           class="bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
           🛡 Admin
         </a>
       <?php endif; ?>
 
       <a href="profile.php"
-         class="sm:hidden bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
+         class="sm:hidden bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
         👤
       </a>
 
       <a href="logout.php"
-         class="bg-white text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition">
+         class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition">
         Logout
       </a>
     </div>
 
   </div>
+  <div class="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700"></div>
 </nav>
 
 <!-- ============================================================
@@ -203,34 +190,20 @@ function riskBadge($color, $label) {
 <div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
 
   <!-- WELCOME BANNER -->
-  <div class="anim flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style="animation-delay:0.05s">
-    <div>
-      <h2 class="text-xl font-bold text-gray-800">
-        Good <?= (date('H') < 12) ? 'morning' : ((date('H') < 18) ? 'afternoon' : 'evening') ?>,
-        <span class="text-red-600"><?= htmlspecialchars(explode(' ', $_SESSION['user'])[0]) ?></span> 👋
-      </h2>
-      <p class="text-sm text-gray-400 mt-0.5">Here's your campus safety overview for today.</p>
-    </div>
-
-    <?php if ($campus_risk): ?>
-    <a href="risk_prediction.php"
-       class="flex items-center gap-2 bg-white border border-gray-100 rounded-2xl px-4 py-2.5 shadow-sm hover:shadow-md transition shrink-0">
-      <span class="text-xs text-gray-400">Campus Risk (90d)</span>
-      <?= riskBadge($campus_risk['color'], $campus_risk['label']) ?>
-      <?php if ($top_risk_location): ?>
-      <span class="text-xs text-gray-400 hidden sm:inline">
-        · highest: <?= htmlspecialchars(ucwords(str_replace('_',' ',$top_risk_location['location']))) ?>
-      </span>
-      <?php endif; ?>
-    </a>
-    <?php endif; ?>
+  <div class="anim" style="animation-delay:0.05s">
+    <h2 class="text-xl font-bold text-gray-800">
+      Good <?= (date('H') < 12) ? 'morning' : ((date('H') < 18) ? 'afternoon' : 'evening') ?>,
+      <span class="text-red-600"><?= htmlspecialchars(explode(' ', $_SESSION['user'])[0]) ?></span> 👋
+    </h2>
+    <p class="text-sm text-gray-400 mt-0.5">Here's your campus safety overview for today.</p>
   </div>
 
   <!-- QUICK ACTIONS -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3 anim" style="animation-delay:0.1s">
 
     <button onclick="openReportModal()"
-      class="action-btn bg-red-600 text-white rounded-2xl p-5 shadow-md flex flex-col items-start gap-2 col-span-2 md:col-span-1">
+      class="action-btn text-white rounded-2xl p-5 shadow-md flex flex-col items-start gap-2 col-span-2 md:col-span-1"
+      style="background:linear-gradient(135deg,#152875,#b91c1c);">
       <span class="text-2xl">🚨</span>
       <span class="font-bold text-sm leading-tight">Report Incident</span>
     </button>
@@ -243,13 +216,14 @@ function riskBadge($color, $label) {
     </a>
 
     <a href="emergency.php"
-      class="action-btn bg-red-800 text-white rounded-2xl p-5 shadow-md flex flex-col items-start gap-2 no-underline">
+      class="action-btn text-white rounded-2xl p-5 shadow-md flex flex-col items-start gap-2 no-underline"
+      style="background:linear-gradient(135deg,#0d1a52,#7f1d1d);">
       <span class="text-2xl">📞</span>
       <span class="font-bold text-sm leading-tight">Emergency Service</span>
     </a>
 
     <a href="risk_prediction.php"
-      class="action-btn bg-white text-gray-700 rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col items-start gap-2">
+      class="action-btn text-gray-700 rounded-2xl p-5 shadow-md flex flex-col items-start gap-2 col-span-2 md:col-span-1">
       <span class="text-2xl">📊</span>
       <span class="font-semibold text-sm leading-tight">Risk Prediction</span>
     </a>
@@ -259,33 +233,25 @@ function riskBadge($color, $label) {
   <!-- STAT CARDS -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3 anim" style="animation-delay:0.16s">
 
-    <a href="incidents.php" class="block">
-      <div class="stat-card red bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Reports</p>
-        <p class="text-3xl font-bold text-red-600"><?= $total_reports ?></p>
-      </div>
-    </a>
+    <div class="stat-card red bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Reports</p>
+      <p class="text-3xl font-bold text-red-600"><?= $total_reports ?></p>
+    </div>
 
-    <a href="incidents.php?status=open" class="block">
-      <div class="stat-card amber bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Active</p>
-        <p class="text-3xl font-bold text-amber-500"><?= $active_incidents ?></p>
-      </div>
-    </a>
+    <div class="stat-card amber bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Active</p>
+      <p class="text-3xl font-bold text-amber-500"><?= $active_incidents ?></p>
+    </div>
 
-    <a href="incidents.php?status=resolved" class="block">
-      <div class="stat-card green bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Resolved</p>
-        <p class="text-3xl font-bold text-emerald-500"><?= $resolved ?></p>
-      </div>
-    </a>
+    <div class="stat-card green bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Resolved</p>
+      <p class="text-3xl font-bold text-emerald-500"><?= $resolved ?></p>
+    </div>
 
-    <a href="incidents.php?status=open&risk=high" class="block">
-      <div class="stat-card orange bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">High Risk</p>
-        <p class="text-3xl font-bold text-orange-500"><?= $high_risk ?></p>
-      </div>
-    </a>
+    <div class="stat-card orange bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">High Risk</p>
+      <p class="text-3xl font-bold text-orange-500"><?= $high_risk ?></p>
+    </div>
 
   </div>
 
@@ -365,7 +331,8 @@ function riskBadge($color, $label) {
      ============================================================ -->
 <button id="medai-toggle"
   onclick="toggleMedai()"
-  class="fixed bottom-6 right-6 z-50 bg-red-700 hover:bg-red-800 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+  class="fixed bottom-6 right-6 z-50 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+  style="background:linear-gradient(135deg,#152875,#b91c1c);"
   title="Ask Medai">
   <span id="medai-icon" class="text-2xl">🤖</span>
 </button>
@@ -381,7 +348,7 @@ function riskBadge($color, $label) {
   style="display:none; max-height: 520px;">
 
   <!-- Header -->
-  <div class="bg-red-700 text-white px-4 py-3 flex items-center gap-3">
+  <div class="text-white px-4 py-3 flex items-center gap-3" style="background:linear-gradient(90deg,#152875,#b91c1c);">
     <div class="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-xl shrink-0">🤖</div>
     <div class="flex-1 min-w-0">
       <p class="font-bold text-sm leading-tight">Medai</p>

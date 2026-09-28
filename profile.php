@@ -185,7 +185,7 @@ $incidentCount = count($my_incidents);
     @keyframes fadeUp { from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);} }
     .anim { animation:fadeUp 0.4s ease both; }
     body { background-color:#f3f4f6; background-image:radial-gradient(circle at 1px 1px,rgba(0,0,0,0.04) 1px,transparent 0); background-size:24px 24px; }
-    .tab-btn.active { background:#b91c1c; color:#fff; }
+    .tab-btn.active { background:linear-gradient(90deg,#152875,#b91c1c); color:#fff; }
     input:focus, select:focus, textarea:focus { outline:none; box-shadow:0 0 0 2px #fca5a5; }
     .toggle-track { transition:background 0.2s; }
     .toggle-thumb { transition:transform 0.2s; }
@@ -196,16 +196,20 @@ $incidentCount = count($my_incidents);
 <body class="min-h-screen">
 
 <!-- NAVBAR -->
-<nav class="bg-red-700 text-white sticky top-0 z-40 shadow-lg">
-  <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-    <div>
-      <span class="text-xs text-red-300 uppercase tracking-widest block leading-none">ACLC Smart Campus</span>
-      <span class="font-bold text-lg leading-tight">Profile & Settings</span>
+<nav class="sticky top-0 z-40 shadow-lg" style="background:linear-gradient(90deg,#0d1a52,#152875 60%,#1c3494);">
+  <div class="max-w-4xl mx-auto px-4 py-2.5 flex items-center justify-between text-white">
+    <div class="flex items-center gap-3">
+      <img src="assets/aclc_logo.webp" alt="ACLC College" class="w-9 h-9 rounded-full ring-2 ring-white/40 bg-white object-cover shrink-0">
+      <div>
+        <span class="text-xs text-blue-200 uppercase tracking-widest block leading-none">ACLC Smart Campus</span>
+        <span class="font-bold text-lg leading-tight">Profile & Settings</span>
+      </div>
     </div>
-    <a href="dashboard.php" class="bg-white text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition">
+    <a href="dashboard.php" class="bg-white text-[#152875] hover:bg-blue-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition">
       ← Dashboard
     </a>
   </div>
+  <div class="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700"></div>
 </nav>
 
 <!-- TOAST -->
@@ -243,9 +247,9 @@ if ($toast && isset($toasts[$toast])):
     <div class="relative shrink-0">
       <?php if (!empty($user['avatar']) && file_exists($user['avatar'])): ?>
         <img src="<?= htmlspecialchars($user['avatar']) ?>" alt="Avatar"
-          class="w-24 h-24 rounded-2xl object-cover shadow-md border-4 border-white ring-2 ring-red-200">
+          class="w-24 h-24 rounded-2xl object-cover shadow-md border-4 border-white ring-2 ring-blue-200">
       <?php else: ?>
-        <div class="w-24 h-24 rounded-2xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-md text-white text-3xl font-bold">
+        <div class="w-24 h-24 rounded-2xl flex items-center justify-center shadow-md text-white text-3xl font-bold" style="background:linear-gradient(135deg,#152875,#b91c1c);">
           <?= htmlspecialchars($initials) ?>
         </div>
       <?php endif; ?>
@@ -255,7 +259,8 @@ if ($toast && isset($toasts[$toast])):
         <input type="file" name="avatar" id="avatarInput" accept="image/*" class="hidden"
           onchange="document.getElementById('avatarForm').submit()">
         <button type="button" onclick="document.getElementById('avatarInput').click()"
-          class="absolute -bottom-2 -right-2 bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-xl flex items-center justify-center shadow-md transition text-sm">
+          class="absolute -bottom-2 -right-2 text-white w-8 h-8 rounded-xl flex items-center justify-center shadow-md transition text-sm hover:opacity-90"
+          style="background:#152875;">
           📷
         </button>
       </form>
@@ -380,7 +385,8 @@ if ($toast && isset($toasts[$toast])):
 
         <div class="flex justify-end pt-2">
           <button type="submit"
-            class="bg-red-700 hover:bg-red-800 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm">
+            class="text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm hover:opacity-90"
+            style="background:linear-gradient(90deg,#152875,#b91c1c);">
             💾 Save Profile
           </button>
         </div>
@@ -458,7 +464,8 @@ if ($toast && isset($toasts[$toast])):
 
         <div class="flex justify-end pt-2">
           <button type="submit"
-            class="bg-red-700 hover:bg-red-800 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm">
+            class="text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm hover:opacity-90"
+            style="background:linear-gradient(90deg,#152875,#b91c1c);">
             💾 Save Settings
           </button>
         </div>
@@ -513,7 +520,8 @@ if ($toast && isset($toasts[$toast])):
 
         <div class="flex justify-end pt-2">
           <button type="submit"
-            class="bg-red-700 hover:bg-red-800 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm">
+            class="text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm hover:opacity-90"
+            style="background:linear-gradient(90deg,#152875,#b91c1c);">
             🔐 Update Password
           </button>
         </div>

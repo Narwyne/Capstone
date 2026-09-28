@@ -37,7 +37,7 @@ $toast         = $_GET['toast'] ?? '';
     @keyframes fadeUp  { from{opacity:0;transform:translateY(16px)}  to{opacity:1;transform:translateY(0)} }
     .animate-slide { animation: slideIn 0.3s ease; }
     .card-anim     { animation: fadeUp  0.4s ease both; }
-    .tab-btn.active { background:#b91c1c; color:white; }
+    .tab-btn.active { background:linear-gradient(90deg,#152875,#b91c1c); color:white; }
     tr.incident-row:hover td { background:#fef2f2; }
     tr.user-row:hover td     { background:#fef2f2; }
     tr.ec-row:hover td        { background:#fef2f2; }
@@ -64,18 +64,22 @@ $toast         = $_GET['toast'] ?? '';
 <?php endif; ?>
 
 <!-- NAVBAR -->
-<nav class="bg-red-700 text-white sticky top-0 z-40 shadow-lg">
-  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-    <div>
-      <span class="text-xs text-red-300 uppercase tracking-widest block leading-none">ACLC Smart Campus</span>
-      <span class="font-bold text-lg leading-tight">Admin Panel</span>
+<nav class="sticky top-0 z-40 shadow-lg" style="background:linear-gradient(90deg,#0d1a52,#152875 60%,#1c3494);">
+  <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between text-white">
+    <div class="flex items-center gap-3">
+      <img src="assets/aclc_logo.webp" alt="ACLC College" class="w-9 h-9 rounded-full ring-2 ring-white/40 bg-white object-cover shrink-0">
+      <div>
+        <span class="text-xs text-blue-200 uppercase tracking-widest block leading-none">ACLC Smart Campus</span>
+        <span class="font-bold text-lg leading-tight">Admin Panel</span>
+      </div>
     </div>
     <div class="flex items-center gap-2">
-      <span class="hidden sm:block text-red-200 text-sm">👤 <?= htmlspecialchars($_SESSION['user']) ?></span>
-      <a href="dashboard.php" class="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-sm font-medium transition">Dashboard</a>
-      <a href="logout.php"    class="bg-white text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition">Logout</a>
+      <span class="hidden sm:block text-blue-200 text-sm">👤 <?= htmlspecialchars($_SESSION['user']) ?></span>
+      <a href="dashboard.php" class="bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg text-sm font-medium transition">Dashboard</a>
+      <a href="logout.php"    class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition">Logout</a>
     </div>
   </div>
+  <div class="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700"></div>
 </nav>
 
 <?php if ($db_error): ?>
@@ -362,7 +366,8 @@ $toast         = $_GET['toast'] ?? '';
 
           <div class="sm:col-span-2">
             <button type="submit" id="addEcBtn"
-              class="w-full sm:w-auto bg-red-700 hover:bg-red-800 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm flex items-center gap-2">
+              class="w-full sm:w-auto text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm flex items-center gap-2 hover:opacity-90"
+              style="background:linear-gradient(90deg,#152875,#b91c1c);">
               <span id="addEcBtnText">➕ Add Contact</span>
               <svg id="addEcSpinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -502,7 +507,8 @@ $toast         = $_GET['toast'] ?? '';
           <input type="text" name="name" required placeholder="Room / Area e.g. Engineering Building"
             class="flex-1 w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
           <button type="submit" id="addLocBtn"
-            class="bg-red-700 hover:bg-red-800 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 shrink-0">
+            class="text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 shrink-0 hover:opacity-90"
+            style="background:linear-gradient(90deg,#152875,#b91c1c);">
             <span id="addLocBtnText">➕ Add Location</span>
             <svg id="addLocSpinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -688,7 +694,7 @@ $toast         = $_GET['toast'] ?? '';
 <!-- INCIDENT DETAIL MODAL -->
 <div id="detailModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
   <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-modal">
-    <div class="bg-red-700 text-white px-5 py-4 rounded-t-2xl flex justify-between items-center">
+    <div class="text-white px-5 py-4 rounded-t-2xl flex justify-between items-center" style="background:linear-gradient(90deg,#152875,#b91c1c);">
       <h3 class="font-bold text-lg">Incident Details</h3>
       <button onclick="closeDetail()" class="text-white hover:text-red-200 text-2xl leading-none">&times;</button>
     </div>

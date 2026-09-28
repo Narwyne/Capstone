@@ -117,17 +117,21 @@ $categoryMeta = [
 <body class="min-h-screen">
 
 <!-- NAVBAR -->
-<nav class="bg-red-700 text-white sticky top-0 z-40 shadow-lg">
-  <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-    <div>
-      <span class="text-xs text-red-300 uppercase tracking-widest block leading-none">ACLC Smart Campus</span>
-      <span class="font-bold text-lg leading-tight">Emergency Services</span>
+<nav class="sticky top-0 z-40 shadow-lg" style="background:linear-gradient(90deg,#0d1a52,#152875 60%,#1c3494);">
+  <div class="max-w-3xl mx-auto px-4 py-2.5 flex items-center justify-between text-white">
+    <div class="flex items-center gap-3">
+      <img src="assets/aclc_logo.webp" alt="ACLC College" class="w-9 h-9 rounded-full ring-2 ring-white/40 bg-white object-cover shrink-0">
+      <div>
+        <span class="text-xs text-blue-200 uppercase tracking-widest block leading-none">ACLC Smart Campus</span>
+        <span class="font-bold text-lg leading-tight">Emergency Services</span>
+      </div>
     </div>
     <a href="dashboard.php"
-       class="bg-white text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition">
+       class="bg-white text-[#152875] hover:bg-blue-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition">
       ← Back
     </a>
   </div>
+  <div class="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700"></div>
 </nav>
 
 <div class="max-w-3xl mx-auto px-4 py-6 space-y-6">

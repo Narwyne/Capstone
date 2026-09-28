@@ -44,14 +44,18 @@ function fmtType($t) { return ucfirst(str_replace('_',' ',$t)); }
 </head>
 <body class="min-h-screen">
 
-<nav class="bg-red-700 text-white sticky top-0 z-40 shadow-lg">
-  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-    <div>
-      <span class="text-xs text-red-300 uppercase tracking-widest block leading-none">ACLC Smart Campus</span>
-      <span class="font-bold text-lg leading-tight">Risk Prediction</span>
+<nav class="sticky top-0 z-40 shadow-lg" style="background:linear-gradient(90deg,#0d1a52,#152875 60%,#1c3494);">
+  <div class="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between text-white">
+    <div class="flex items-center gap-3">
+      <img src="assets/aclc_logo.webp" alt="ACLC College" class="w-9 h-9 rounded-full ring-2 ring-white/40 bg-white object-cover shrink-0">
+      <div>
+        <span class="text-xs text-blue-200 uppercase tracking-widest block leading-none">ACLC Smart Campus</span>
+        <span class="font-bold text-lg leading-tight">Risk Prediction</span>
+      </div>
     </div>
-    <a href="dashboard.php" class="bg-white text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition">← Dashboard</a>
+    <a href="dashboard.php" class="bg-white text-[#152875] hover:bg-blue-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition">← Dashboard</a>
   </div>
+  <div class="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700"></div>
 </nav>
 
 <div class="max-w-5xl mx-auto px-4 py-6 space-y-5">
@@ -126,7 +130,7 @@ function fmtType($t) { return ucfirst(str_replace('_',' ',$t)); }
   <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 anim" style="animation-delay:0.2s">
     <div class="flex items-center justify-between mb-3">
       <h3 class="font-bold text-gray-700 text-sm">🤖 AI Risk Briefing</h3>
-      <button id="genBtn" onclick="generateInsight()" class="text-xs bg-red-700 hover:bg-red-800 text-white font-semibold px-3 py-1.5 rounded-lg transition">Generate</button>
+      <button id="genBtn" onclick="generateInsight()" class="text-xs text-white font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90" style="background:linear-gradient(90deg,#152875,#b91c1c);">Generate</button>
     </div>
     <div id="insightBox" class="text-sm text-gray-500 whitespace-pre-wrap leading-relaxed">Click "Generate" for an AI-written summary of the risk data above.</div>
   </div>

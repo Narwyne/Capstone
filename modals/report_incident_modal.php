@@ -39,7 +39,7 @@ if (empty($branchLocations)) {
   <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-modal">
     
     <!-- MODAL HEADER -->
-    <div class="bg-red-700 text-white px-6 py-4 rounded-t-2xl flex items-center justify-between">
+    <div class="text-white px-6 py-4 rounded-t-2xl flex items-center justify-between" style="background:linear-gradient(90deg,#152875,#b91c1c);">
       <div class="flex items-center gap-3">
         <span class="text-2xl">🚨</span>
         <div>
@@ -220,7 +220,8 @@ if (empty($branchLocations)) {
 
         <!-- SUBMIT -->
         <button type="submit" id="submitBtn"
-          class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2">
+          class="w-full text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 hover:opacity-90"
+          style="background:linear-gradient(90deg,#152875,#b91c1c);">
           <span id="submitText">🚨 Submit Report</span>
           <svg id="submitSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
