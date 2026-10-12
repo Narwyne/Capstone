@@ -201,7 +201,7 @@ $incidentCount = count($my_incidents);
     <div class="flex items-center gap-3">
       <img src="assets/aclc_logo.webp" alt="ACLC College" class="w-9 h-9 rounded-full ring-2 ring-white/40 bg-white object-cover shrink-0">
       <div>
-        <span class="text-xs text-blue-200 uppercase tracking-widest block leading-none">ACLC Smart Campus</span>
+        <span class="text-xs text-blue-200 uppercase tracking-widest block leading-none">Smart Campus Incident Reporting and Risk Prediction System</span>
         <span class="font-bold text-lg leading-tight">Profile & Settings</span>
       </div>
     </div>
