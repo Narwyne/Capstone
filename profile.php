@@ -29,17 +29,17 @@ if (!$user) {
     exit();
 }
 
-// ── Fetch this user's incident reports ────────────────────────────
-// NOTE: this used to filter on the text `reported_by` column against
-// $_SESSION['user_id'] (a number) — a varchar-vs-int comparison that
-// never actually matched, so this list was silently always empty.
-// Now that incidents carry a real reported_by_user_id FK, this works.
+// ── Fetch this user's incident reports (+ latest admin note) ──────
+// Requires the incident_updates table (see migration.sql).
 if ($pdo) {
     $stmt = $pdo->prepare("
         SELECT
             i.id, i.incident_type, i.severity,
             COALESCE(loc.name, i.location) AS location,
-            i.status, i.reported_at
+            i.status, i.reported_at,
+            (SELECT u.note FROM incident_updates u
+              WHERE u.incident_id = i.id AND u.note IS NOT NULL AND u.note <> ''
+              ORDER BY u.id DESC LIMIT 1) AS last_note
         FROM incidents i
         LEFT JOIN locations loc ON loc.id = i.location_id
         WHERE i.reported_by_user_id = ?
@@ -561,6 +561,11 @@ if ($toast && isset($toasts[$toast])):
             <p class="text-xs text-gray-400 mt-0.5">
               📍 <?= htmlspecialchars(ucwords(str_replace('_',' ',$inc['location']))) ?>
             </p>
+            <?php $msg = ['open'=>'⏳ Received, waiting for review','in_progress'=>'🛠 Your report is being handled','resolved'=>'✅ This report has been resolved'][$inc['status']] ?? ''; ?>
+            <p class="text-xs font-medium text-gray-600 mt-1"><?= $msg ?></p>
+            <?php if (!empty($inc['last_note'])): ?>
+            <p class="text-xs text-gray-500 mt-1 bg-white border border-gray-100 rounded-lg px-2 py-1">💬 Admin note: <?= htmlspecialchars($inc['last_note']) ?></p>
+            <?php endif; ?>
           </div>
           <span class="text-xs text-gray-400 mono shrink-0"><?= timeAgo($inc['reported_at']) ?></span>
         </div>

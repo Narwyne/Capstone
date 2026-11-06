@@ -14,6 +14,11 @@ $action = $_POST['action'] ?? '';
 if ($action === 'resolve_incident' && isset($_POST['id'])) {
     $pdo->prepare("UPDATE incidents SET status='resolved' WHERE id=?")
         ->execute([(int)$_POST['id']]);
+
+    // Log it in the incident history so reporters see the update
+    $pdo->prepare("INSERT INTO incident_updates (incident_id, admin_id, status, note) VALUES (?,?,'resolved',NULL)")
+        ->execute([(int)$_POST['id'], (int)($_SESSION['user_id'] ?? 0) ?: null]);
+
     header("Location: admin.php?toast=resolved");
     exit();
 }

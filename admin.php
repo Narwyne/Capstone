@@ -144,7 +144,7 @@ $toast         = $_GET['toast'] ?? '';
           <option value="medium">🟡 Medium</option><option value="low">🟢 Low</option>
         </select>
         <select id="statusFilter" onchange="filterIncidents()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white">
-          <option value="">All Status</option><option value="open">Open</option><option value="resolved">Resolved</option>
+          <option value="">All Status</option><option value="open">Open</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option>
         </select>
       </div>
 
@@ -178,6 +178,7 @@ $toast         = $_GET['toast'] ?? '';
               <td class="py-3">
                 <div class="flex gap-1 items-center">
                   <button onclick='showDetail(<?= json_encode($inc) ?>)' class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded-lg transition">👁 View</button>
+                  <button onclick="openUpdateModal(<?= (int)$inc['id'] ?>, '<?= htmlspecialchars($inc['status'], ENT_QUOTES) ?>')" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded-lg transition">📝 Update</button>
                   <?php if ($inc['status'] !== 'resolved'): ?>
                   <form method="POST" class="inline">
                     <input type="hidden" name="action" value="resolve_incident">
@@ -222,6 +223,7 @@ $toast         = $_GET['toast'] ?? '';
           <p class="text-xs text-gray-500 mb-3 line-clamp-2"><?= htmlspecialchars($inc['description']) ?></p>
           <div class="flex gap-2">
             <button onclick='showDetail(<?= json_encode($inc) ?>)' class="flex-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 py-2 rounded-lg font-medium transition">👁 Details</button>
+            <button onclick="openUpdateModal(<?= (int)$inc['id'] ?>, '<?= htmlspecialchars($inc['status'], ENT_QUOTES) ?>')" class="flex-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 py-2 rounded-lg font-medium transition">📝 Update</button>
             <?php if ($inc['status'] !== 'resolved'): ?>
             <form method="POST" class="flex-1">
               <input type="hidden" name="action" value="resolve_incident">
@@ -1398,5 +1400,7 @@ function closeDetail() {
 }
 document.getElementById('detailModal').addEventListener('click',function(e){if(e.target===this)closeDetail();});
 </script>
+
+<?php include 'includes/admin_update_modal.php'; ?>
 </body>
 </html>

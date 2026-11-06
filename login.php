@@ -13,6 +13,47 @@ if (isset($_SESSION['user'])) {
     exit();
 }
 
+// ── Rate limiting settings ────────────────────────────────────────
+const LOGIN_MAX_EMAIL_FAILS = 5;    // failed tries per email...
+const LOGIN_MAX_IP_FAILS    = 20;   // ...or per IP (higher: a campus shares one IP)
+const LOGIN_WINDOW_MINUTES  = 15;   // ...within this window => locked for this long
+
+// Table is created automatically if you haven't imported migration.sql
+$conn->query("CREATE TABLE IF NOT EXISTS login_attempts (
+    id int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+    email varchar(100) NOT NULL,
+    ip varchar(45) NOT NULL,
+    attempted_at timestamp NOT NULL DEFAULT current_timestamp(),
+    PRIMARY KEY (id),
+    KEY idx_email_time (email, attempted_at),
+    KEY idx_ip_time (ip, attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+// Returns seconds left on the lockout, or 0 if not locked.
+function loginLockSeconds(mysqli $conn, string $email, string $ip): int {
+    $window = LOGIN_WINDOW_MINUTES;
+    $checks = [
+        ['email', $email, LOGIN_MAX_EMAIL_FAILS],
+        ['ip',    $ip,    LOGIN_MAX_IP_FAILS],
+    ];
+    $left = 0;
+    foreach ($checks as [$col, $val, $max]) {
+        $stmt = $conn->prepare("
+            SELECT COUNT(*) AS c,
+                   TIMESTAMPDIFF(SECOND, MAX(attempted_at), NOW()) AS since_last
+            FROM login_attempts
+            WHERE $col = ? AND attempted_at > (NOW() - INTERVAL $window MINUTE)
+        ");
+        $stmt->bind_param("s", $val);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        if ((int)$row['c'] >= $max) {
+            $left = max($left, $window * 60 - (int)$row['since_last']);
+        }
+    }
+    return max(0, $left);
+}
+
 // Generate CSRF token
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -32,18 +73,35 @@ if (isset($_POST['login'])) {
         die("Invalid CSRF token");
     }
 
-    $email = trim($_POST['email']);
+    $email    = trim($_POST['email']);
     $password = $_POST['password'];
+    $emailKey = strtolower(mb_substr($email, 0, 100));
+    $ip       = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 
-    $stmt = $conn->prepare("SELECT * FROM users WHERE email=? LIMIT 1");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    // Clean out old attempts
+    $conn->query("DELETE FROM login_attempts WHERE attempted_at < (NOW() - INTERVAL 1 DAY)");
 
-    if ($result->num_rows === 1) {
-        $user = $result->fetch_assoc();
+    $lockLeft = loginLockSeconds($conn, $emailKey, $ip);
 
-        if (password_verify($password, $user['password'])) {
+    if ($lockLeft > 0) {
+        // Locked: don't even check the password (and don't extend the lock)
+        $mins  = (int)ceil($lockLeft / 60);
+        $error = "Too many failed attempts. Please try again in $mins minute" . ($mins !== 1 ? 's' : '') . ".";
+    } else {
+
+        $stmt = $conn->prepare("SELECT * FROM users WHERE email=? LIMIT 1");
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $user = ($result->num_rows === 1) ? $result->fetch_assoc() : null;
+
+        if ($user && password_verify($password, $user['password'])) {
+
+            // Success: forget failed attempts for this email
+            $del = $conn->prepare("DELETE FROM login_attempts WHERE email = ?");
+            $del->bind_param("s", $emailKey);
+            $del->execute();
 
             session_regenerate_id(true);
 
@@ -65,11 +123,18 @@ if (isset($_POST['login'])) {
             exit();
 
         } else {
-            $error = "Wrong password!";
-        }
+            // Record the failure (also for unknown emails, so they can't be probed freely)
+            $ins = $conn->prepare("INSERT INTO login_attempts (email, ip) VALUES (?, ?)");
+            $ins->bind_param("ss", $emailKey, $ip);
+            $ins->execute();
 
-    } else {
-        $error = "User not found!";
+            // Same message for wrong email and wrong password (no account probing)
+            $error = "Invalid email or password.";
+
+            if (loginLockSeconds($conn, $emailKey, $ip) > 0) {
+                $error = "Too many failed attempts. Please try again in " . LOGIN_WINDOW_MINUTES . " minutes.";
+            }
+        }
     }
 }
 ?>
@@ -154,7 +219,7 @@ if (isset($_POST['login'])) {
   <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 text-center animate-modal">
     <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-2xl mx-auto mb-2">⚠️</div>
     <h2 class="text-lg font-bold text-gray-800 mb-1">Login Error</h2>
-    <p class="text-sm text-gray-500 mb-4"><?php echo $error; ?></p>
+    <p class="text-sm text-gray-500 mb-4"><?php echo htmlspecialchars($error); ?></p>
     <button onclick="document.getElementById('errorModal').remove()"
       class="text-white px-5 py-2 rounded-xl text-sm font-semibold" style="background:#b91c1c;">
       OK

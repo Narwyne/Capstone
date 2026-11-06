@@ -1,14 +1,9 @@
 <!-- =============================================
-     REPORT INCIDENT MODAL
+     REPORT INCIDENT MODAL (with Voice Report)
      Place this file in: modals/report_incident_modal.php
-     The PHP scripts are assumed to be in the parent folder.
      ============================================= -->
 
 <?php
-// Branch → room map, built from admin-managed locations.
-// $pdo is expected to already be set by the page that includes this modal
-// (e.g. dashboard.php). Falls back to a single "Main Campus" branch with
-// the old static room list if the tables aren't there yet.
 $branchLocations = [];
 if (isset($pdo) && $pdo) {
     try {
@@ -35,9 +30,9 @@ if (empty($branchLocations)) {
 
 <!-- MODAL BACKDROP -->
 <div id="reportModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-  
+
   <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-modal">
-    
+
     <!-- MODAL HEADER -->
     <div class="text-white px-6 py-4 rounded-t-2xl flex items-center justify-between" style="background:linear-gradient(90deg,#152875,#b91c1c);">
       <div class="flex items-center gap-3">
@@ -50,20 +45,41 @@ if (empty($branchLocations)) {
       <button onclick="closeModal()" class="text-white hover:text-red-200 text-2xl leading-none">&times;</button>
     </div>
 
-    <!-- FORM -->
     <div class="p-6">
 
-      <!-- SUCCESS MESSAGE (hidden by default) -->
       <div id="successMsg" class="hidden bg-green-50 border border-green-300 text-green-700 rounded-xl p-4 mb-4 text-center">
         <div class="text-3xl mb-1">✅</div>
         <p class="font-semibold">Incident Reported Successfully!</p>
         <p class="text-sm text-green-600 mt-1">Authorities have been notified. Stay safe.</p>
       </div>
 
-      <!-- ERROR MESSAGE (hidden by default) -->
       <div id="errorMsg" class="hidden bg-red-50 border border-red-300 text-red-700 rounded-xl p-4 mb-4">
         <p class="font-semibold">⚠️ Submission Failed</p>
         <p class="text-sm mt-1" id="errorText">Please check your entries and try again.</p>
+      </div>
+
+      <!-- ============ VOICE REPORT ============ -->
+      <div id="voiceBox" class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <p class="text-sm font-semibold text-gray-700">🎤 Voice Report</p>
+          <select id="voiceLang" class="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white">
+            <option value="en-US">English</option>
+            <option value="fil-PH">Filipino</option>
+          </select>
+        </div>
+        <button type="button" id="voiceBtn" onclick="toggleVoice()"
+          class="w-full text-white font-semibold py-2.5 rounded-xl text-sm transition hover:opacity-90 flex items-center justify-center gap-2"
+          style="background:linear-gradient(90deg,#152875,#b91c1c);">
+          <span id="voiceBtnText">🎤 Tap and speak your report</span>
+        </button>
+        <textarea id="voiceText" rows="2" placeholder="What you said will appear here (you can edit it)…"
+          class="hidden w-full mt-2 border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"></textarea>
+        <button type="button" id="voiceAnalyzeBtn" onclick="analyzeVoice()"
+          class="hidden w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-xl text-sm transition">
+          🤖 Fill form with AI
+        </button>
+        <p id="voiceStatus" class="text-xs text-gray-500 mt-2 hidden"></p>
+        <p class="text-xs text-gray-400 mt-1">AI fills the form below. Please review before submitting.</p>
       </div>
 
       <form id="incidentForm" enctype="multipart/form-data" class="space-y-4">
@@ -87,69 +103,58 @@ if (empty($branchLocations)) {
           </select>
         </div>
 
-        <!-- SEVERITY (with AI auto‑hide) -->
+        <!-- SEVERITY -->
         <div>
           <label class="block text-sm font-semibold text-gray-700 mb-2">
             Severity Level <span class="text-red-500">*</span>
           </label>
 
-          <!-- Manual severity radios (hidden when AI is on) -->
           <div id="severityManual" class="flex gap-2">
             <label class="severity-btn flex-1 cursor-pointer">
               <input type="radio" name="severity" value="low" class="sr-only">
               <div class="severity-label border-2 border-gray-200 rounded-xl p-2 text-center text-sm transition hover:border-green-400">
-                <div class="text-lg">🟢</div>
-                <div class="font-medium text-gray-700">Low</div>
+                <div class="text-lg">🟢</div><div class="font-medium text-gray-700">Low</div>
               </div>
             </label>
             <label class="severity-btn flex-1 cursor-pointer">
               <input type="radio" name="severity" value="medium" class="sr-only">
               <div class="severity-label border-2 border-gray-200 rounded-xl p-2 text-center text-sm transition hover:border-yellow-400">
-                <div class="text-lg">🟡</div>
-                <div class="font-medium text-gray-700">Medium</div>
+                <div class="text-lg">🟡</div><div class="font-medium text-gray-700">Medium</div>
               </div>
             </label>
             <label class="severity-btn flex-1 cursor-pointer">
               <input type="radio" name="severity" value="high" class="sr-only">
               <div class="severity-label border-2 border-gray-200 rounded-xl p-2 text-center text-sm transition hover:border-red-400">
-                <div class="text-lg">🔴</div>
-                <div class="font-medium text-gray-700">High</div>
+                <div class="text-lg">🔴</div><div class="font-medium text-gray-700">High</div>
               </div>
             </label>
             <label class="severity-btn flex-1 cursor-pointer">
               <input type="radio" name="severity" value="critical" class="sr-only">
               <div class="severity-label border-2 border-gray-200 rounded-xl p-2 text-center text-sm transition hover:border-red-700">
-                <div class="text-lg">🚨</div>
-                <div class="font-medium text-gray-700">Critical</div>
+                <div class="text-lg">🚨</div><div class="font-medium text-gray-700">Critical</div>
               </div>
             </label>
           </div>
 
-          <!-- AI-selected severity display (hidden when AI is off) -->
           <div id="severityAI" class="hidden border-2 border-blue-200 rounded-xl p-4 text-center bg-blue-50/50">
             <div class="text-lg" id="aiSeverityIcon"></div>
             <div id="aiSeverityText" class="font-semibold text-gray-700"></div>
             <p id="aiSeverityReason" class="text-xs text-gray-500 mt-1"></p>
-            <!-- Hidden input to hold the actual value for form submission -->
             <input type="hidden" name="severity_ai" id="severity_ai_input" value="">
           </div>
 
-          <!-- AI Waiting message (shown before prediction) -->
           <div id="severityWaiting" class="hidden text-sm text-gray-500 mt-2 text-center">
             🤖 AI will determine severity after you write a description…
           </div>
 
-          <!-- AI CLASSIFY TOGGLE -->
-          <!-- <div class="flex items-center gap-3 bg-blue-50 rounded-xl p-3 mt-2">
-            <input type="checkbox" id="aiClassify" checked
-              class="w-4 h-4 accent-blue-600">
+          <!-- AI CLASSIFY TOGGLE (restored — the JS needs this element) -->
+          <div class="flex items-center gap-3 bg-blue-50 rounded-xl p-3 mt-2">
+            <input type="checkbox" id="aiClassify" checked class="w-4 h-4 accent-blue-600">
             <div>
-              <label for="aiClassify" class="text-sm font-medium text-gray-700 cursor-pointer">
-                🤖 Let AI suggest severity
-              </label>
+              <label for="aiClassify" class="text-sm font-medium text-gray-700 cursor-pointer">🤖 Let AI suggest severity</label>
               <p class="text-xs text-gray-400">AI will auto-select based on your description</p>
             </div>
-          </div> -->
+          </div>
         </div>
 
         <!-- SCHOOL BRANCH -->
@@ -166,7 +171,7 @@ if (empty($branchLocations)) {
           </select>
         </div>
 
-        <!-- LOCATION / ROOM (populated after branch is chosen) -->
+        <!-- LOCATION / ROOM -->
         <div>
           <label class="block text-sm font-semibold text-gray-700 mb-1">
             Location / Room <span class="text-red-500">*</span>
@@ -208,12 +213,9 @@ if (empty($branchLocations)) {
 
         <!-- ANONYMOUS TOGGLE -->
         <div class="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
-          <input type="checkbox" name="anonymous" id="anonymous" value="1"
-            class="w-4 h-4 accent-red-600">
+          <input type="checkbox" name="anonymous" id="anonymous" value="1" class="w-4 h-4 accent-red-600">
           <div>
-            <label for="anonymous" class="text-sm font-medium text-gray-700 cursor-pointer">
-              Submit anonymously
-            </label>
+            <label for="anonymous" class="text-sm font-medium text-gray-700 cursor-pointer">Submit anonymously</label>
             <p class="text-xs text-gray-400">Your name will not appear on this report</p>
           </div>
         </div>
@@ -235,42 +237,31 @@ if (empty($branchLocations)) {
   </div>
 </div>
 
-<!-- =============================================
-     STYLES
-     ============================================= -->
 <style>
   @keyframes modalIn {
     from { opacity: 0; transform: scale(0.95) translateY(10px); }
     to   { opacity: 1; transform: scale(1) translateY(0); }
   }
   .animate-modal { animation: modalIn 0.2s ease-out; }
-
-  /* Severity radio highlight */
-  .severity-btn input:checked + .severity-label {
-    border-color: #b91c1c;
-    background-color: #fef2f2;
-  }
+  .severity-btn input:checked + .severity-label { border-color: #b91c1c; background-color: #fef2f2; }
+  @keyframes micPulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+  .mic-live { animation: micPulse 1s infinite; background:#dc2626 !important; }
 </style>
 
-<!-- =============================================
-     JAVASCRIPT
-     ============================================= -->
 <script>
-// Branch → room list, rendered server-side from admin-managed locations.
 const BRANCH_LOCATIONS = <?= json_encode($branchLocations) ?>;
+const fmtName = r => r.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
 
 function populateRoomsForBranch(branchName) {
   const locSel = document.getElementById('location');
   const rooms  = BRANCH_LOCATIONS[branchName] || [];
-
   if (!branchName || rooms.length === 0) {
     locSel.innerHTML = '<option value="">— Select a branch first —</option>';
     locSel.disabled  = true;
     return;
   }
-
   locSel.innerHTML = '<option value="">— Select Building/Area —</option>' +
-    rooms.map(r => `<option value="${r}">${r.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`).join('');
+    rooms.map(r => `<option value="${r}">${fmtName(r)}</option>`).join('');
   locSel.disabled = false;
 }
 
@@ -288,6 +279,7 @@ function openReportModal() {
 }
 
 function closeModal() {
+  stopVoice();
   const modal = document.getElementById('reportModal');
   modal.classList.add('hidden');
   modal.classList.remove('flex');
@@ -304,17 +296,19 @@ function resetForm() {
   document.getElementById('submitBtn').disabled = false;
   document.getElementById('submitText').textContent = '🚨 Submit Report';
   document.getElementById('submitSpinner').classList.add('hidden');
-  // Clear AI state
   document.getElementById('severity_ai_input').value = '';
   document.getElementById('severityAI').classList.add('hidden');
   document.getElementById('severityWaiting').classList.add('hidden');
-  // Clear branch → room cascade
   document.getElementById('branch').value = '';
   populateRoomsForBranch('');
+  // voice box
+  document.getElementById('voiceText').value = '';
+  document.getElementById('voiceText').classList.add('hidden');
+  document.getElementById('voiceAnalyzeBtn').classList.add('hidden');
+  document.getElementById('voiceStatus').classList.add('hidden');
   toggleSeverityView();
 }
 
-// Close on backdrop click
 document.getElementById('reportModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
@@ -323,11 +317,7 @@ document.getElementById('reportModal').addEventListener('click', function(e) {
 document.getElementById('photoInput').addEventListener('change', function() {
   const file = this.files[0];
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) {
-    alert('File too large. Max 5MB.'); 
-    this.value = ''; 
-    return;
-  }
+  if (file.size > 5 * 1024 * 1024) { alert('File too large. Max 5MB.'); this.value = ''; return; }
   const reader = new FileReader();
   reader.onload = (e) => {
     document.getElementById('previewImg').src = e.target.result;
@@ -346,28 +336,16 @@ document.getElementById('incidentForm').addEventListener('submit', async functio
   const location = document.getElementById('location').value;
   const desc     = document.getElementById('description').value.trim();
 
-  if (!type || !branch || !location || !desc) {
-    showError('Please fill in all required fields.');
-    return;
-  }
-  if (desc.length < 10) {
-    showError('Description must be at least 10 characters.');
-    return;
-  }
+  if (!type || !branch || !location || !desc) { showError('Please fill in all required fields.'); return; }
+  if (desc.length < 10) { showError('Description must be at least 10 characters.'); return; }
 
   let severity = null;
   if (document.getElementById('aiClassify').checked) {
     severity = document.getElementById('severity_ai_input').value;
-    if (!severity) {
-      showError('AI has not yet determined severity. Please wait or disable AI to select manually.');
-      return;
-    }
+    if (!severity) { showError('AI has not yet determined severity. Please wait or disable AI to select manually.'); return; }
   } else {
     const radio = document.querySelector('input[name="severity"]:checked');
-    if (!radio) {
-      showError('Please select a severity level.');
-      return;
-    }
+    if (!radio) { showError('Please select a severity level.'); return; }
     severity = radio.value;
   }
 
@@ -379,25 +357,19 @@ document.getElementById('incidentForm').addEventListener('submit', async functio
 
   const formData = new FormData(this);
   formData.append('severity', severity);
-  // `location` is already in formData (it's a named <select>); branch is
-  // UI-only and not sent, since submit_incident.php validates against the
-  // room name, not the branch.
 
   try {
-    // *** PATH CORRECTION: go up one level to find submit_incident.php ***
-    const response = await fetch('../submit_incident.php', {
-      method: 'POST',
-      body: formData
-    });
-
+    const response = await fetch('submit_incident.php', { method: 'POST', body: formData });
     const result = await response.json();
 
     if (result.success) {
       document.getElementById('incidentForm').classList.add('hidden');
+      document.getElementById('voiceBox').classList.add('hidden');
       document.getElementById('successMsg').classList.remove('hidden');
       setTimeout(() => {
         closeModal();
         document.getElementById('incidentForm').classList.remove('hidden');
+        document.getElementById('voiceBox').classList.remove('hidden');
         if (typeof refreshIncidents === 'function') refreshIncidents();
       }, 3000);
     } else {
@@ -421,6 +393,18 @@ function showError(msg) {
 
 // ---- AI Severity Classification ----
 let classifyTimer = null;
+const SEV_ICONS  = { low: '🟢', medium: '🟡', high: '🔴', critical: '🚨' };
+const SEV_COLORS = { low:'text-green-700', medium:'text-yellow-700', high:'text-orange-700', critical:'text-red-700' };
+
+function showAISeverity(sev, reason) {
+  document.getElementById('severityWaiting').classList.add('hidden');
+  document.getElementById('severityAI').classList.remove('hidden');
+  document.getElementById('severity_ai_input').value = sev;
+  document.getElementById('aiSeverityIcon').textContent = SEV_ICONS[sev] || '🤖';
+  document.getElementById('aiSeverityText').textContent = sev.toUpperCase();
+  document.getElementById('aiSeverityText').className = `font-semibold ${SEV_COLORS[sev] || 'text-gray-700'}`;
+  document.getElementById('aiSeverityReason').textContent = reason || '';
+}
 
 async function classifySeverity() {
   if (!document.getElementById('aiClassify').checked) return;
@@ -439,35 +423,18 @@ async function classifySeverity() {
     const fd = new FormData();
     fd.append('incident_type', type);
     fd.append('description', desc);
-
-    // *** PATH CORRECTION: go up one level to find classify_incident.php ***
-    const res  = await fetch('../classify_incident.php', {
-      method: 'POST',
-      body: fd
-    });
+    const res  = await fetch('classify_incident.php', { method: 'POST', body: fd });
     const data = await res.json();
 
     if (data.severity) {
-      document.getElementById('severityWaiting').classList.add('hidden');
-      document.getElementById('severityAI').classList.remove('hidden');
-      document.getElementById('severity_ai_input').value = data.severity;
-
-      const icons = { low: '🟢', medium: '🟡', high: '🔴', critical: '🚨' };
-      const colors = {
-        low: 'text-green-700', medium: 'text-yellow-700',
-        high: 'text-orange-700', critical: 'text-red-700'
-      };
-      document.getElementById('aiSeverityIcon').textContent = icons[data.severity] || '🤖';
-      document.getElementById('aiSeverityText').textContent = data.severity.toUpperCase();
-      document.getElementById('aiSeverityText').className = `font-semibold ${colors[data.severity] || 'text-gray-700'}`;
-      document.getElementById('aiSeverityReason').textContent = data.reason || '';
+      showAISeverity(data.severity, data.reason);
     } else {
       document.getElementById('severityWaiting').classList.remove('hidden');
-      document.getElementById('severityWaiting').textContent = '⚠️ Could not classify – please select manually.';
+      document.getElementById('severityWaiting').textContent = '⚠️ Could not classify – turn off AI to select manually.';
     }
   } catch (_) {
     document.getElementById('severityWaiting').classList.remove('hidden');
-    document.getElementById('severityWaiting').textContent = '⚠️ AI unavailable – select severity below.';
+    document.getElementById('severityWaiting').textContent = '⚠️ AI unavailable – turn off AI to select manually.';
   }
 }
 
@@ -510,4 +477,133 @@ document.getElementById('incident_type').addEventListener('change', function() {
   clearTimeout(classifyTimer);
   classifyTimer = setTimeout(classifySeverity, 400);
 });
+
+// =============================================
+// VOICE REPORT
+// Browser speech-to-text (Chrome/Edge, needs localhost or HTTPS),
+// then AI extracts the fields and fills the form for review.
+// =============================================
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognizer = null, listening = false, finalText = '';
+
+function setVoiceStatus(msg) {
+  const el = document.getElementById('voiceStatus');
+  el.textContent = msg;
+  el.classList.toggle('hidden', !msg);
+}
+
+function toggleVoice() {
+  if (!SpeechRec) {
+    setVoiceStatus('⚠️ Voice input is not supported in this browser. Use Chrome or Edge.');
+    return;
+  }
+  listening ? stopVoice() : startVoice();
+}
+
+function startVoice() {
+  finalText = '';
+  recognizer = new SpeechRec();
+  recognizer.lang = document.getElementById('voiceLang').value;
+  recognizer.continuous = true;
+  recognizer.interimResults = true;
+
+  const box = document.getElementById('voiceText');
+  box.classList.remove('hidden');
+  box.value = '';
+  document.getElementById('voiceAnalyzeBtn').classList.add('hidden');
+
+  recognizer.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText += t + ' ';
+      else interim += t;
+    }
+    box.value = (finalText + interim).trim();
+  };
+
+  recognizer.onerror = (e) => {
+    const msgs = {
+      'not-allowed': '⚠️ Microphone blocked. Allow mic access in your browser.',
+      'no-speech': '⚠️ No speech detected. Try again.',
+      'audio-capture': '⚠️ No microphone found.',
+    };
+    setVoiceStatus(msgs[e.error] || '⚠️ Voice error: ' + e.error);
+  };
+
+  recognizer.onend = () => {
+    listening = false;
+    document.getElementById('voiceBtn').classList.remove('mic-live');
+    document.getElementById('voiceBtnText').textContent = '🎤 Tap and speak again';
+    if (box.value.trim().length >= 5) {
+      document.getElementById('voiceAnalyzeBtn').classList.remove('hidden');
+      analyzeVoice(); // auto-analyze when speaking stops
+    }
+  };
+
+  try {
+    recognizer.start();
+    listening = true;
+    document.getElementById('voiceBtn').classList.add('mic-live');
+    document.getElementById('voiceBtnText').textContent = '⏹ Listening… tap to stop';
+    setVoiceStatus('🎙️ Speak now: what happened, where, and how serious.');
+  } catch (_) {}
+}
+
+function stopVoice() {
+  if (recognizer && listening) recognizer.stop();
+}
+
+async function analyzeVoice() {
+  const text = document.getElementById('voiceText').value.trim();
+  if (text.length < 5) { setVoiceStatus('⚠️ Nothing to analyze yet.'); return; }
+
+  const btn = document.getElementById('voiceAnalyzeBtn');
+  btn.disabled = true;
+  btn.textContent = '🤖 Analyzing…';
+  setVoiceStatus('🤖 AI is reading your report…');
+
+  try {
+    const res  = await fetch('voice_report.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript: text })
+    });
+    const d = await res.json();
+
+    if (!d.success) { setVoiceStatus('⚠️ ' + (d.message || 'Could not analyze.')); }
+    else { fillFromVoice(d); }
+  } catch (_) {
+    setVoiceStatus('⚠️ Network error. Please try again.');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🤖 Fill form with AI';
+}
+
+function fillFromVoice(d) {
+  document.getElementById('incident_type').value = d.incident_type;
+  document.getElementById('description').value   = d.description;
+
+  // Severity: respect the AI toggle
+  if (document.getElementById('aiClassify').checked) {
+    showAISeverity(d.severity, d.reason);
+  } else {
+    const r = document.querySelector(`input[name="severity"][value="${d.severity}"]`);
+    if (r) r.checked = true;
+  }
+
+  // Branch + location
+  let missing = '';
+  if (d.location && d.branch) {
+    document.getElementById('branch').value = d.branch;
+    populateRoomsForBranch(d.branch);
+    document.getElementById('location').value = d.location;
+  } else {
+    missing = ' Please pick the branch and location yourself.';
+  }
+
+  setVoiceStatus('✅ Form filled. Review it, then press Submit.' + missing);
+  document.getElementById('incidentForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 </script>

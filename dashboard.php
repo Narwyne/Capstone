@@ -561,7 +561,7 @@ STATS: total=${s.total} active=${s.active} resolved=${s.resolved} high_risk=${s.
 OPEN BY TYPE: ${breakdownStr}
 RECENT OPEN (type|sev|loc|time):\n${recentStr}
 EMERGENCY CONTACTS (cite the exact name and number when relevant, never invent or alter a number): ${formatContactsForPrompt()}
-Rules: Answer campus safety/incident questions using above data. If someone describes a live/ongoing emergency, immediately tell them to call the most relevant number above, then offer to log a report. To file a report collect: incident_type(fire/medical/accident/suspicious/theft/flooding/earthquake/other), severity(low/medium/high/critical), location, description(optional). When ready output exactly one line: SUBMIT_REPORT:{"incident_type":"...","severity":"...","location":"...","description":"..."}
+Rules: Answer campus safety/incident questions using above data. If someone describes a live/ongoing emergency: FIRST give 2-4 very short immediate safety steps (e.g. fire: stay low, leave the building, don't use elevators, alert others). THEN give the most relevant number above. THEN offer to log a report. To file a report collect: incident_type(fire/medical/accident/suspicious/theft/flooding/earthquake/other), severity(low/medium/high/critical), location, description(optional). When ready output exactly one line: SUBMIT_REPORT:{"incident_type":"...","severity":"...","location":"...","description":"..."}
 Be concise. Bullets for steps. Never invent data.`;
   }
 
@@ -740,10 +740,8 @@ Be concise. Bullets for steps. Never invent data.`;
     if (medaiHistory.length > 6) medaiHistory = medaiHistory.slice(-6);
     saveMedaiState();
 
-    // Emergency escalation check — fires instantly, before waiting on the AI reply.
-    if (detectEmergency(text)) {
-      await showEmergencyBanner(text);
-    }
+    // Detect now, but show the call banner AFTER the AI's safety advice.
+    const isEmergency = detectEmergency(text);
 
     const typing = document.getElementById('medai-typing');
     const btn    = document.getElementById('medai-send-btn');
@@ -771,7 +769,7 @@ Be concise. Bullets for steps. Never invent data.`;
           if (cleanReply) appendMessage('assistant', cleanReply);
           medaiHistory.push({ role:'assistant', content:reply });
           saveMedaiState();
-          askConfirmSubmit(payload);   // ← was: await submitMedaiReport(payload);
+          askConfirmSubmit(payload);
         } catch {
           appendMessage('assistant', reply);
           medaiHistory.push({ role:'assistant', content:reply });
@@ -782,9 +780,12 @@ Be concise. Bullets for steps. Never invent data.`;
         medaiHistory.push({ role:'assistant', content:reply });
         saveMedaiState();
       }
+
+      if (isEmergency) await showEmergencyBanner(text);
     } catch {
       typing.classList.add('hidden');
       appendMessage('assistant', "Sorry, I'm having trouble connecting. Please try again.");
+      if (isEmergency) await showEmergencyBanner(text);
     }
     btn.disabled = false;
     document.getElementById('medai-messages').scrollTop = 9999;
