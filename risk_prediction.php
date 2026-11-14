@@ -155,5 +155,6 @@ async function generateInsight() {
   btn.disabled = false; btn.textContent = 'Regenerate';
 }
 </script>
+<script src="js/theme.js"></script>
 </body>
 </html>

@@ -11,11 +11,10 @@ if (!isset($_SESSION['user'])) {
 }
 
 require_once 'includes/db.php';
+require_once 'includes/types.php';
+$TYPES = incidentTypes($pdo ?? null, false);
 
-// ---- Fetch incidents ----
-// location/reported_by are COALESCEd: prefer the live, joined name (via
-// location_id / reported_by_user_id) and fall back to the point-in-time
-// text snapshot if the location or user was since renamed/deleted.
+// ---- Fetch incidents (+ latest admin note, visible to all users) ----
 $incidents = [];
 if ($pdo) {
     $incidents = $pdo->query("
@@ -24,9 +23,14 @@ if ($pdo) {
             COALESCE(loc.name, i.location) AS location,
             i.description,
             COALESCE(usr.name, i.reported_by) AS reported_by,
-            i.status, i.photo_path, i.reported_at
+            br.name AS branch,
+            i.status, i.photo_path, i.reported_at,
+            (SELECT u.note FROM incident_updates u
+              WHERE u.incident_id = i.id AND u.note IS NOT NULL AND u.note <> ''
+              ORDER BY u.id DESC LIMIT 1) AS last_note
         FROM incidents i
         LEFT JOIN locations loc ON loc.id = i.location_id
+        LEFT JOIN branches br ON br.id = loc.branch_id
         LEFT JOIN users usr ON usr.id = i.reported_by_user_id
         ORDER BY i.reported_at DESC
     ")->fetchAll();
@@ -34,8 +38,9 @@ if ($pdo) {
 
 // ---- Helpers ----
 function typeIcon($t) {
-    return ['fire'=>'🔥','medical'=>'🏥','accident'=>'⚠️','suspicious'=>'👁️',
-            'theft'=>'🔓','flooding'=>'🌊','earthquake'=>'🌍','other'=>'📋'][$t] ?? '📋';
+    global $TYPES;
+    foreach ($TYPES as $x) if ($x['slug'] === $t) return $x['icon'];
+    return '📋';
 }
 function timeAgo($datetime) {
     $diff = time() - strtotime($datetime);
@@ -56,6 +61,7 @@ $critical = count(array_filter($incidents, fn($i) => in_array($i['severity'], ['
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Incidents — ACLC Smart Campus</title>
+  <script src="js/theme.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
@@ -124,7 +130,6 @@ $critical = count(array_filter($incidents, fn($i) => in_array($i['severity'], ['
   <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 anim" style="animation-delay:0.1s">
     <div class="flex flex-col sm:flex-row gap-2 flex-wrap">
 
-      <!-- Search with inline clear button -->
       <div class="relative flex-1 min-w-0">
         <input type="text" id="searchInput" oninput="onSearchInput()"
           placeholder="🔍 Search type, location, reporter..."
@@ -153,14 +158,9 @@ $critical = count(array_filter($incidents, fn($i) => in_array($i['severity'], ['
       <select id="typeFilter" onchange="filterCards()"
         class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white">
         <option value="">All Types</option>
-        <option value="fire">🔥 Fire</option>
-        <option value="medical">🏥 Medical</option>
-        <option value="accident">⚠️ Accident</option>
-        <option value="suspicious">👁️ Suspicious</option>
-        <option value="theft">🔓 Theft</option>
-        <option value="flooding">🌊 Flooding</option>
-        <option value="earthquake">🌍 Earthquake</option>
-        <option value="other">📋 Other</option>
+        <?php foreach ($TYPES as $t): ?>
+        <option value="<?= htmlspecialchars($t['slug']) ?>"><?= htmlspecialchars($t['icon'] . ' ' . $t['label']) ?></option>
+        <?php endforeach; ?>
       </select>
 
       <select id="sortOrder" onchange="filterCards()"
@@ -176,7 +176,6 @@ $critical = count(array_filter($incidents, fn($i) => in_array($i['severity'], ['
       </button>
     </div>
 
-    <!-- Active filter chips -->
     <div id="activeChips" class="hidden gap-2 flex-wrap mt-3"></div>
 
     <p class="text-xs text-gray-400 mt-2 mono" id="resultCount">Showing all <?= $total ?> incidents</p>
@@ -207,7 +206,7 @@ $critical = count(array_filter($incidents, fn($i) => in_array($i['severity'], ['
     ?>
     <div class="inc-card <?= $inc['severity'] ?> bg-white rounded-2xl shadow-sm overflow-hidden"
       data-type="<?= htmlspecialchars($inc['incident_type']) ?>"
-      data-location="<?= htmlspecialchars($inc['location']) ?>"
+      data-location="<?= htmlspecialchars($inc['location'] . ' ' . ($inc['branch'] ?? '')) ?>"
       data-reporter="<?= htmlspecialchars($inc['reported_by'] ?? '') ?>"
       data-description="<?= htmlspecialchars($inc['description'] ?? '') ?>"
       data-date="<?= strtotime($inc['reported_at']) ?>"
@@ -215,7 +214,6 @@ $critical = count(array_filter($incidents, fn($i) => in_array($i['severity'], ['
       data-status="<?= htmlspecialchars($inc['status']) ?>">
 
       <div class="p-4">
-        <!-- Top row -->
         <div class="flex items-start justify-between gap-3">
           <div class="flex items-start gap-3 flex-1 min-w-0">
             <span class="text-2xl mt-0.5 shrink-0"><?= $icon ?></span>
@@ -229,24 +227,28 @@ $critical = count(array_filter($incidents, fn($i) => in_array($i['severity'], ['
                   <?= $staLabel ?>
                 </span>
               </div>
-              <p class="text-sm text-gray-500" data-hl>📍 <?= htmlspecialchars($loc) ?></p>
+              <p class="text-sm text-gray-500" data-hl>📍 <?= htmlspecialchars($loc) ?><?= !empty($inc['branch']) ? ' · ' . htmlspecialchars($inc['branch']) : '' ?></p>
             </div>
           </div>
-          <!-- ID + Time -->
           <div class="text-right shrink-0">
             <p class="mono text-xs text-gray-400">#<?= $inc['id'] ?></p>
             <p class="text-xs text-gray-400 mt-0.5"><?= $ago ?></p>
           </div>
         </div>
 
-        <!-- Description -->
         <?php if (!empty($inc['description'])): ?>
         <p class="text-sm text-gray-600 mt-3 leading-relaxed line-clamp-2 pl-9" data-hl>
           <?= htmlspecialchars($inc['description']) ?>
         </p>
         <?php endif; ?>
 
-        <!-- Footer row -->
+        <?php if (!empty($inc['last_note'])): ?>
+        <div class="mt-3 ml-9 text-xs text-gray-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+          💬 <span class="font-semibold text-blue-700">Admin note:</span>
+          <?= htmlspecialchars($inc['last_note']) ?>
+        </div>
+        <?php endif; ?>
+
         <div class="flex items-center justify-between mt-3 pl-9">
           <div class="flex items-center gap-3 text-xs text-gray-400">
             <span data-hl>👤 <?= htmlspecialchars($inc['reported_by'] ?? 'Anonymous') ?></span>

@@ -1400,7 +1400,8 @@ function closeDetail() {
 }
 document.getElementById('detailModal').addEventListener('click',function(e){if(e.target===this)closeDetail();});
 </script>
-
+<script src="js/admin_sort.js"></script>
 <?php include 'includes/admin_update_modal.php'; ?>
+<script src="js/theme.js"></script>
 </body>
 </html>

@@ -105,6 +105,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
         $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
         $stmt->execute([$user['id']]);
         $user = $stmt->fetch();
+
+        if (!in_array($theme, ['light','dark'])) $theme = 'light';
+        setcookie('theme', $theme, time() + 31536000, '/');        
     }
 
     // ── Change password ──
@@ -399,7 +402,7 @@ if ($toast && isset($toasts[$toast])):
         <input type="hidden" name="action" value="save_settings">
 
         <!-- Notifications -->
-        <div>
+        <!-- <div>
           <h3 class="text-sm font-bold text-gray-700 mb-3">🔔 Notifications</h3>
           <div class="space-y-3">
 
@@ -434,7 +437,7 @@ if ($toast && isset($toasts[$toast])):
             </label>
 
           </div>
-        </div>
+        </div> -->
 
         <!-- Theme -->
         <div>
@@ -456,7 +459,6 @@ if ($toast && isset($toasts[$toast])):
                 <?= ($user['theme'] ?? 'light') === 'dark' ? 'border-red-500 bg-red-50' : 'border-gray-200' ?>">
                 <div class="text-2xl mb-1">🌙</div>
                 <p class="text-sm font-semibold text-gray-700">Dark</p>
-                <p class="text-xs text-gray-400">Coming soon</p>
               </div>
             </label>
           </div>
@@ -602,5 +604,6 @@ function updateNamePreview() {
 });
 </script>
 <script src="js/profile.js"></script>
+<script src="js/theme.js"></script>
 </body>
 </html>

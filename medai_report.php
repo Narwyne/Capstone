@@ -15,10 +15,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-$body = file_get_contents('php://input');
-$data = json_decode($body, true);
+require_once 'includes/db.php';
+require_once 'includes/types.php';
 
-$allowed_types     = ['fire','medical','accident','suspicious','theft','flooding','earthquake','other'];
+if (!$pdo) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Database unavailable']);
+    exit();
+}
+
+$data = json_decode(file_get_contents('php://input'), true);
+
+// Types come from the admin-managed list (active types only)
+$allowed_types      = array_column(incidentTypes($pdo), 'slug');
 $allowed_severities = ['low','medium','high','critical'];
 
 $type        = trim($data['incident_type'] ?? '');
@@ -36,33 +45,48 @@ if (!in_array($severity, $allowed_severities)) {
     echo json_encode(['error' => 'Invalid severity']);
     exit();
 }
-if (empty($location)) {
+if ($location === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Location is required']);
     exit();
 }
+if ($description === '') $description = 'Reported via Medai chat.';
 
-$host   = 'localhost';
-$dbname = 'campus_system';
-$dbuser = 'root';
-$dbpass = '';
+$branch = trim($data['branch'] ?? '');
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $dbuser, $dbpass, [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
-
-    // Resolve the FK counterparts. Medai doesn't validate location against
-    // the admin-managed list as strictly as the report modal does, so a
-    // miss here just leaves location_id NULL — the text still saves fine.
+    // Location MUST be one of the admin-managed, active locations (matched by name, and branch if given)
+    $norm = fn($x) => str_replace(' ', '_', strtolower(trim($x)));
     $location_id = null;
-    try {
-        $locStmt = $pdo->prepare("SELECT id FROM locations WHERE name = ? AND is_active = 1");
-        $locStmt->execute([$location]);
-        $found = $locStmt->fetchColumn();
-        if ($found) $location_id = (int)$found;
-    } catch (PDOException $e) { /* locations table unavailable — ignore */ }
+    $rows = $pdo->query("
+        SELECT l.id, l.name, b.name AS branch
+        FROM locations l JOIN branches b ON b.id = l.branch_id
+        WHERE l.is_active = 1
+    ")->fetchAll();
+    foreach ($rows as $r) {
+        if ($norm($r['name']) === $norm($location) && ($branch === '' || strcasecmp($r['branch'], $branch) === 0)) {
+            $location_id = (int)$r['id'];
+            $location    = $r['name'];   // canonical name
+            break;
+        }
+    }
+    if ($location_id === null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Unknown location. Please choose a location from the list.']);
+        exit();
+    }
+
+    // Max 5 Medai reports per user per hour
+    $uid = (int)($_SESSION['user_id'] ?? 0);
+    $rl = $pdo->prepare("SELECT COUNT(*) FROM incidents WHERE reported_by_user_id = ? AND description LIKE '[via Medai]%' AND reported_at > (NOW() - INTERVAL 1 HOUR)");
+    $rl->execute([$uid]);
+    if ((int)$rl->fetchColumn() >= 5) {
+        http_response_code(429);
+        echo json_encode(['error' => 'Too many reports through Medai. Please try again later.']);
+        exit();
+    }
+
+    $description = '[via Medai] ' . $description;
 
     $reported_by_user_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
 
@@ -74,7 +98,6 @@ try {
             (:type, :severity, :location, :location_id, :description,
              :reported_by, :reported_by_user_id, 'open', NOW())
     ");
-
     $stmt->execute([
         ':type'                => $type,
         ':severity'            => $severity,
@@ -88,6 +111,7 @@ try {
     echo json_encode(['success' => true, 'message' => 'Incident reported successfully.']);
 
 } catch (PDOException $e) {
+    error_log('medai_report: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => 'Failed to save incident: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Failed to save incident.']);
 }

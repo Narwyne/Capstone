@@ -28,15 +28,20 @@ low: minor, no danger. medium: moderate risk. high: serious/urgent. critical: li
 Incident type: {$type}
 Description: {$description}";
 
-$res = groqChat([['role'=>'user','content'=>$prompt]], 0.1, 60);
+// 800 tokens: reasoning models spend tokens "thinking" before the answer
+$res = groqChat([['role'=>'user','content'=>$prompt]], 0.1, 800, 15);
 
 if (!$res['ok']) {
-    echo json_encode(['severity' => null, 'reason' => 'AI unavailable.']);
+    echo json_encode(['severity' => null, 'reason' => 'AI unavailable: ' . ($res['error'] ?? 'unknown')]);
     exit();
 }
 
-$text   = preg_replace('/```(?:json)?|```/', '', trim($res['text']));
-$result = json_decode($text, true);
+// Grab the first {...} block, ignoring any extra text around it
+$text   = $res['text'];
+$result = null;
+if (preg_match('/\{.*\}/s', $text, $m)) {
+    $result = json_decode($m[0], true);
+}
 
 if (!$result || !in_array($result['severity'] ?? '', ['low','medium','high','critical'])) {
     echo json_encode(['severity' => null, 'reason' => 'Could not parse AI response.']);

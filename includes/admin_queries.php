@@ -24,17 +24,21 @@ $users = $pdo
 // location/reported_by are COALESCEd: prefer the live, joined name (via
 // location_id / reported_by_user_id) and fall back to the point-in-time
 // text snapshot if the location or user was since renamed/deleted.
+// The branch name is appended to location ("slab_2 · ACLC Real") so the
+// admin table, cards, detail popup and search all show it.
 
 $incidents = $pdo
     ? $pdo->query("
         SELECT
             i.id, i.incident_type, i.severity,
-            COALESCE(loc.name, i.location) AS location,
+            CONCAT(COALESCE(loc.name, i.location),
+                   IF(br.name IS NULL, '', CONCAT(' · ', br.name))) AS location,
             i.description,
             COALESCE(usr.name, i.reported_by) AS reported_by,
             i.status, i.photo_path, i.reported_at
         FROM incidents i
         LEFT JOIN locations loc ON loc.id = i.location_id
+        LEFT JOIN branches br ON br.id = loc.branch_id
         LEFT JOIN users usr ON usr.id = i.reported_by_user_id
         ORDER BY i.reported_at DESC
       ")->fetchAll()

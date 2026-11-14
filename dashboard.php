@@ -49,9 +49,11 @@ if ($pdo) {
         SELECT
             i.incident_type, i.severity,
             COALESCE(loc.name, i.location) AS location,
-            i.description, i.reported_at, i.status
+            i.description, i.reported_at, i.status,
+            br.name AS branch
         FROM incidents i
         LEFT JOIN locations loc ON loc.id = i.location_id
+        LEFT JOIN branches br ON br.id = loc.branch_id
         ORDER BY i.reported_at DESC
         LIMIT 5
     ")->fetchAll();
@@ -299,7 +301,7 @@ function timeAgo($datetime) {
               <?= ucfirst($inc['severity']) ?>
             </span>
           </div>
-          <p class="text-xs text-gray-500 mt-0.5">📍 <?= htmlspecialchars($location) ?></p>
+          <p class="text-xs text-gray-500 mt-0.5">📍 <?= htmlspecialchars($location) ?><?= !empty($inc['branch']) ? ' · ' . htmlspecialchars($inc['branch']) : '' ?></p>
           <?php if (!empty($inc['description'])): ?>
           <p class="text-xs text-gray-400 mt-1 line-clamp-1"><?= htmlspecialchars($inc['description']) ?></p>
           <?php endif; ?>
@@ -553,15 +555,23 @@ function timeAgo($datetime) {
       ? Object.entries(breakdown).map(([t,v]) => `${t}(${v.join(',')})`).join('; ')
       : 'none';
     const recentStr = d.recent.length
-      ? d.recent.map(r => `${r.incident_type}|${r.severity}|${r.location}|${r.reported_at.slice(0,16)}`).join('\n')
+      ? d.recent.map(r => `${r.incident_type}|${r.severity}|${r.location}|${r.reported_at.slice(0,16)}|${r.status}${r.last_note ? '|note:'+r.last_note : ''}`).join('\n')
       : 'none';
+    const typesStr = (d.types||[]).map(t => t.slug).join(', ') || 'none';
+    const locByBranch = {};
+    (d.locations||[]).forEach(l => { (locByBranch[l.branch] = locByBranch[l.branch] || []).push(l.name); });
+    const locStr = Object.entries(locByBranch).map(([b,n]) => `${b}: ${n.join(', ')}`).join(' | ') || 'none';
 
     return `You are Medai, ACLC Smart Campus safety assistant.
 STATS: total=${s.total} active=${s.active} resolved=${s.resolved} high_risk=${s.high_risk}
 OPEN BY TYPE: ${breakdownStr}
-RECENT OPEN (type|sev|loc|time):\n${recentStr}
+RECENT UNRESOLVED (type|sev|loc|time|status|note):\n${recentStr}
+REPORT TYPES YOU MAY FILE: ${typesStr}
+LOCATIONS YOU MAY USE (branch: names): ${locStr}
 EMERGENCY CONTACTS (cite the exact name and number when relevant, never invent or alter a number): ${formatContactsForPrompt()}
-Rules: Answer campus safety/incident questions using above data. If someone describes a live/ongoing emergency: FIRST give 2-4 very short immediate safety steps (e.g. fire: stay low, leave the building, don't use elevators, alert others). THEN give the most relevant number above. THEN offer to log a report. To file a report collect: incident_type(fire/medical/accident/suspicious/theft/flooding/earthquake/other), severity(low/medium/high/critical), location, description(optional). When ready output exactly one line: SUBMIT_REPORT:{"incident_type":"...","severity":"...","location":"...","description":"..."}
+Rules: Answer campus safety/incident questions using the data above only. If someone describes a live/ongoing emergency: FIRST give 2-4 very short immediate safety steps (e.g. fire: stay low, leave the building, don't use elevators, alert others). THEN give the most relevant number above. THEN offer to log a report.
+ONLY offer to file a report for a real safety incident that fits one of the REPORT TYPES above. If it does not fit (e.g. traffic, jokes, hypotheticals, general questions), say you cannot file that and list the available types. Never invent a type or a location: the location MUST be one exact name from LOCATIONS above. If the user is off campus, use a location from the Outside branch and put the exact place in the description. If you cannot match a location, ask the user to pick one from the list.
+To file a report collect: incident_type, severity(low/medium/high/critical), branch, location, description. When ready output exactly one line: SUBMIT_REPORT:{\"incident_type\":\"...\",\"severity\":\"...\",\"branch\":\"...\",\"location\":\"...\",\"description\":\"...\"}
 Be concise. Bullets for steps. Never invent data.`;
   }
 
@@ -749,6 +759,7 @@ Be concise. Bullets for steps. Never invent data.`;
     document.getElementById('medai-messages').scrollTop = 9999;
     btn.disabled = true;
 
+    medaiData = null;   // always use fresh incident data
     await ensureMedaiContext();
 
     try {
@@ -769,7 +780,11 @@ Be concise. Bullets for steps. Never invent data.`;
           if (cleanReply) appendMessage('assistant', cleanReply);
           medaiHistory.push({ role:'assistant', content:reply });
           saveMedaiState();
-          askConfirmSubmit(payload);
+          if ((medaiData.types||[]).length && !medaiData.types.some(t => t.slug === payload.incident_type)) {
+            appendMessage('assistant', "I can't file that type. Available types: " + medaiData.types.map(t => t.label).join(', ') + '.');
+          } else {
+            askConfirmSubmit(payload);
+          }
         } catch {
           appendMessage('assistant', reply);
           medaiHistory.push({ role:'assistant', content:reply });
@@ -795,6 +810,6 @@ Be concise. Bullets for steps. Never invent data.`;
     if (!medaiOpen) document.getElementById('medai-dot').classList.remove('hidden');
   }, 2000);
 </script>
-
+<script src="js/theme.js"></script>
 </body>
 </html>

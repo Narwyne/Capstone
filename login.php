@@ -104,6 +104,7 @@ if (isset($_POST['login'])) {
             $del->execute();
 
             session_regenerate_id(true);
+            setcookie('theme', $user['theme'] ?? 'light', time() + 31536000, '/');
 
             $_SESSION['user'] = $user['name'];
             $_SESSION['user_id'] = $user['id'];

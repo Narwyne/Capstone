@@ -1,9 +1,11 @@
 <!-- =============================================
-     REPORT INCIDENT MODAL (with Voice Report)
+     REPORT INCIDENT MODAL
      Place this file in: modals/report_incident_modal.php
      ============================================= -->
 
 <?php
+require_once __DIR__ . '/../includes/types.php';
+$incidentTypeList = incidentTypes($pdo ?? null);
 $branchLocations = [];
 if (isset($pdo) && $pdo) {
     try {
@@ -58,30 +60,6 @@ if (empty($branchLocations)) {
         <p class="text-sm mt-1" id="errorText">Please check your entries and try again.</p>
       </div>
 
-      <!-- ============ VOICE REPORT ============ -->
-      <div id="voiceBox" class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
-        <div class="flex items-center justify-between gap-2 mb-2">
-          <p class="text-sm font-semibold text-gray-700">🎤 Voice Report</p>
-          <select id="voiceLang" class="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white">
-            <option value="en-US">English</option>
-            <option value="fil-PH">Filipino</option>
-          </select>
-        </div>
-        <button type="button" id="voiceBtn" onclick="toggleVoice()"
-          class="w-full text-white font-semibold py-2.5 rounded-xl text-sm transition hover:opacity-90 flex items-center justify-center gap-2"
-          style="background:linear-gradient(90deg,#152875,#b91c1c);">
-          <span id="voiceBtnText">🎤 Tap and speak your report</span>
-        </button>
-        <textarea id="voiceText" rows="2" placeholder="What you said will appear here (you can edit it)…"
-          class="hidden w-full mt-2 border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"></textarea>
-        <button type="button" id="voiceAnalyzeBtn" onclick="analyzeVoice()"
-          class="hidden w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-xl text-sm transition">
-          🤖 Fill form with AI
-        </button>
-        <p id="voiceStatus" class="text-xs text-gray-500 mt-2 hidden"></p>
-        <p class="text-xs text-gray-400 mt-1">AI fills the form below. Please review before submitting.</p>
-      </div>
-
       <form id="incidentForm" enctype="multipart/form-data" class="space-y-4">
 
         <!-- INCIDENT TYPE -->
@@ -92,14 +70,9 @@ if (empty($branchLocations)) {
           <select name="incident_type" id="incident_type" required
             class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
             <option value="">— Select Type —</option>
-            <option value="fire">🔥 Fire / Smoke</option>
-            <option value="medical">🏥 Medical Emergency</option>
-            <option value="accident">⚠️ Accident / Injury</option>
-            <option value="suspicious">👁️ Suspicious Activity</option>
-            <option value="theft">🔓 Theft / Robbery</option>
-            <option value="flooding">🌊 Flooding</option>
-            <option value="earthquake">🌍 Earthquake Damage</option>
-            <option value="other">📋 Other</option>
+            <?php foreach ($incidentTypeList as $t): ?>
+            <option value="<?= htmlspecialchars($t['slug']) ?>"><?= htmlspecialchars($t['icon'] . ' ' . $t['label']) ?></option>
+            <?php endforeach; ?>
           </select>
         </div>
 
@@ -147,7 +120,7 @@ if (empty($branchLocations)) {
             🤖 AI will determine severity after you write a description…
           </div>
 
-          <!-- AI CLASSIFY TOGGLE (restored — the JS needs this element) -->
+          <!-- AI CLASSIFY TOGGLE -->
           <div class="flex items-center gap-3 bg-blue-50 rounded-xl p-3 mt-2">
             <input type="checkbox" id="aiClassify" checked class="w-4 h-4 accent-blue-600">
             <div>
@@ -244,8 +217,6 @@ if (empty($branchLocations)) {
   }
   .animate-modal { animation: modalIn 0.2s ease-out; }
   .severity-btn input:checked + .severity-label { border-color: #b91c1c; background-color: #fef2f2; }
-  @keyframes micPulse { 0%,100%{opacity:1} 50%{opacity:.6} }
-  .mic-live { animation: micPulse 1s infinite; background:#dc2626 !important; }
 </style>
 
 <script>
@@ -279,7 +250,6 @@ function openReportModal() {
 }
 
 function closeModal() {
-  stopVoice();
   const modal = document.getElementById('reportModal');
   modal.classList.add('hidden');
   modal.classList.remove('flex');
@@ -301,11 +271,6 @@ function resetForm() {
   document.getElementById('severityWaiting').classList.add('hidden');
   document.getElementById('branch').value = '';
   populateRoomsForBranch('');
-  // voice box
-  document.getElementById('voiceText').value = '';
-  document.getElementById('voiceText').classList.add('hidden');
-  document.getElementById('voiceAnalyzeBtn').classList.add('hidden');
-  document.getElementById('voiceStatus').classList.add('hidden');
   toggleSeverityView();
 }
 
@@ -357,6 +322,7 @@ document.getElementById('incidentForm').addEventListener('submit', async functio
 
   const formData = new FormData(this);
   formData.append('severity', severity);
+  formData.append('branch', branch);
 
   try {
     const response = await fetch('submit_incident.php', { method: 'POST', body: formData });
@@ -364,12 +330,10 @@ document.getElementById('incidentForm').addEventListener('submit', async functio
 
     if (result.success) {
       document.getElementById('incidentForm').classList.add('hidden');
-      document.getElementById('voiceBox').classList.add('hidden');
       document.getElementById('successMsg').classList.remove('hidden');
       setTimeout(() => {
         closeModal();
         document.getElementById('incidentForm').classList.remove('hidden');
-        document.getElementById('voiceBox').classList.remove('hidden');
         if (typeof refreshIncidents === 'function') refreshIncidents();
       }, 3000);
     } else {
@@ -406,8 +370,10 @@ function showAISeverity(sev, reason) {
   document.getElementById('aiSeverityReason').textContent = reason || '';
 }
 
+let classifyReq = 0;
 async function classifySeverity() {
   if (!document.getElementById('aiClassify').checked) return;
+  const reqId = ++classifyReq;
 
   const type = document.getElementById('incident_type').value;
   const desc = document.getElementById('description').value.trim();
@@ -419,18 +385,21 @@ async function classifySeverity() {
 
   if (!type || desc.length < 15) return;
 
+  document.getElementById('severityWaiting').textContent = '🤖 AI is analyzing…';
+
   try {
     const fd = new FormData();
     fd.append('incident_type', type);
     fd.append('description', desc);
     const res  = await fetch('classify_incident.php', { method: 'POST', body: fd });
     const data = await res.json();
+    if (reqId !== classifyReq) return; // newer typing superseded this response
 
     if (data.severity) {
       showAISeverity(data.severity, data.reason);
     } else {
       document.getElementById('severityWaiting').classList.remove('hidden');
-      document.getElementById('severityWaiting').textContent = '⚠️ Could not classify – turn off AI to select manually.';
+      document.getElementById('severityWaiting').textContent = '⚠️ ' + (data.reason || 'Could not classify') + ' – turn off AI to select manually.';
     }
   } catch (_) {
     document.getElementById('severityWaiting').classList.remove('hidden');
@@ -470,140 +439,11 @@ document.getElementById('aiClassify').addEventListener('change', toggleSeverityV
 
 document.getElementById('description').addEventListener('input', function() {
   clearTimeout(classifyTimer);
-  classifyTimer = setTimeout(classifySeverity, 800);
+  classifyTimer = setTimeout(classifySeverity, 500);
 });
 
 document.getElementById('incident_type').addEventListener('change', function() {
   clearTimeout(classifyTimer);
   classifyTimer = setTimeout(classifySeverity, 400);
 });
-
-// =============================================
-// VOICE REPORT
-// Browser speech-to-text (Chrome/Edge, needs localhost or HTTPS),
-// then AI extracts the fields and fills the form for review.
-// =============================================
-const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognizer = null, listening = false, finalText = '';
-
-function setVoiceStatus(msg) {
-  const el = document.getElementById('voiceStatus');
-  el.textContent = msg;
-  el.classList.toggle('hidden', !msg);
-}
-
-function toggleVoice() {
-  if (!SpeechRec) {
-    setVoiceStatus('⚠️ Voice input is not supported in this browser. Use Chrome or Edge.');
-    return;
-  }
-  listening ? stopVoice() : startVoice();
-}
-
-function startVoice() {
-  finalText = '';
-  recognizer = new SpeechRec();
-  recognizer.lang = document.getElementById('voiceLang').value;
-  recognizer.continuous = true;
-  recognizer.interimResults = true;
-
-  const box = document.getElementById('voiceText');
-  box.classList.remove('hidden');
-  box.value = '';
-  document.getElementById('voiceAnalyzeBtn').classList.add('hidden');
-
-  recognizer.onresult = (e) => {
-    let interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) finalText += t + ' ';
-      else interim += t;
-    }
-    box.value = (finalText + interim).trim();
-  };
-
-  recognizer.onerror = (e) => {
-    const msgs = {
-      'not-allowed': '⚠️ Microphone blocked. Allow mic access in your browser.',
-      'no-speech': '⚠️ No speech detected. Try again.',
-      'audio-capture': '⚠️ No microphone found.',
-    };
-    setVoiceStatus(msgs[e.error] || '⚠️ Voice error: ' + e.error);
-  };
-
-  recognizer.onend = () => {
-    listening = false;
-    document.getElementById('voiceBtn').classList.remove('mic-live');
-    document.getElementById('voiceBtnText').textContent = '🎤 Tap and speak again';
-    if (box.value.trim().length >= 5) {
-      document.getElementById('voiceAnalyzeBtn').classList.remove('hidden');
-      analyzeVoice(); // auto-analyze when speaking stops
-    }
-  };
-
-  try {
-    recognizer.start();
-    listening = true;
-    document.getElementById('voiceBtn').classList.add('mic-live');
-    document.getElementById('voiceBtnText').textContent = '⏹ Listening… tap to stop';
-    setVoiceStatus('🎙️ Speak now: what happened, where, and how serious.');
-  } catch (_) {}
-}
-
-function stopVoice() {
-  if (recognizer && listening) recognizer.stop();
-}
-
-async function analyzeVoice() {
-  const text = document.getElementById('voiceText').value.trim();
-  if (text.length < 5) { setVoiceStatus('⚠️ Nothing to analyze yet.'); return; }
-
-  const btn = document.getElementById('voiceAnalyzeBtn');
-  btn.disabled = true;
-  btn.textContent = '🤖 Analyzing…';
-  setVoiceStatus('🤖 AI is reading your report…');
-
-  try {
-    const res  = await fetch('voice_report.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript: text })
-    });
-    const d = await res.json();
-
-    if (!d.success) { setVoiceStatus('⚠️ ' + (d.message || 'Could not analyze.')); }
-    else { fillFromVoice(d); }
-  } catch (_) {
-    setVoiceStatus('⚠️ Network error. Please try again.');
-  }
-
-  btn.disabled = false;
-  btn.textContent = '🤖 Fill form with AI';
-}
-
-function fillFromVoice(d) {
-  document.getElementById('incident_type').value = d.incident_type;
-  document.getElementById('description').value   = d.description;
-
-  // Severity: respect the AI toggle
-  if (document.getElementById('aiClassify').checked) {
-    showAISeverity(d.severity, d.reason);
-  } else {
-    const r = document.querySelector(`input[name="severity"][value="${d.severity}"]`);
-    if (r) r.checked = true;
-  }
-
-  // Branch + location
-  let missing = '';
-  if (d.location && d.branch) {
-    document.getElementById('branch').value = d.branch;
-    populateRoomsForBranch(d.branch);
-    document.getElementById('location').value = d.location;
-  } else {
-    missing = ' Please pick the branch and location yourself.';
-  }
-
-  setVoiceStatus('✅ Form filled. Review it, then press Submit.' + missing);
-  document.getElementById('incidentForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
 </script>
