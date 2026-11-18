@@ -164,13 +164,13 @@ $inp = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outli
           <p id="matchLabel" class="text-[11px] mt-1"></p>
         </div>
 
-        <label class="flex items-start gap-2 text-[11px] text-gray-500 cursor-pointer pt-1">
-          <input type="checkbox" name="terms" required class="accent-[#1c3494] w-3.5 h-3.5 mt-0.5">
-          <a href="privacy.php" onclick="openPrivacy(); return false;" class="text-red-600 underline">Privacy Policy</a>
+        <label class="flex items-start gap-2 text-[11px] text-gray-500 pt-1">
+          <input type="checkbox" name="terms" id="termsBox" required onclick="return false;" onkeydown="return false;" class="accent-[#1c3494] w-3.5 h-3.5 mt-0.5 pointer-events-none">
+          <span>I agree to the <a href="privacy.php" onclick="openPrivacy(); return false;" class="text-red-600 underline">Privacy Policy</a> <span class="text-gray-400">(tap to read and agree)</span></span>
         </label>
 
-        <button name="register"
-          class="w-full text-white font-semibold text-sm py-2.5 rounded-xl mt-2 shadow-md transition hover:opacity-90"
+        <button name="register" id="regBtn" disabled
+          class="w-full text-white font-semibold text-sm py-2.5 rounded-xl mt-2 shadow-md transition hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
           style="background:linear-gradient(90deg,#152875,#b91c1c);">
           Register
         </button>
@@ -230,5 +230,14 @@ function checkMatch() {
 }
 </script>
 <?php include 'includes/privacy_modal.php'; ?>
+<script>
+// Overrides the version in privacy_modal.php: "I Agree" is the only way
+// to tick the box and enable the Register button.
+function agreePrivacy() {
+  const c = document.getElementById('termsBox'); if (c) c.checked = true;
+  const b = document.getElementById('regBtn');   if (b) b.disabled = false;
+  closePrivacy();
+}
+</script>
 </body>
 </html>
