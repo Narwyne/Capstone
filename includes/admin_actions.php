@@ -31,14 +31,15 @@ if ($action === 'delete_incident' && isset($_POST['id'])) {
 }
 
 // ── User actions ──────────────────────────────────────────────────
+// Users are banned instead of deleted so their incident reports stay intact.
 
-if ($action === 'delete_user' && isset($_POST['id'])) {
-    // Prevent deleting yourself
+if (($action === 'ban_user' || $action === 'unban_user') && isset($_POST['id'])) {
+    // Prevent banning yourself
     if ((int)$_POST['id'] !== (int)($_SESSION['user_id'] ?? -1)) {
-        $pdo->prepare("DELETE FROM users WHERE id=?")
-            ->execute([(int)$_POST['id']]);
+        $pdo->prepare("UPDATE users SET is_banned=? WHERE id=?")
+            ->execute([$action === 'ban_user' ? 1 : 0, (int)$_POST['id']]);
     }
-    header("Location: admin.php?toast=user_deleted");
+    header("Location: admin.php?tab=users&toast=" . ($action === 'ban_user' ? 'user_banned' : 'user_unbanned'));
     exit();
 }
 

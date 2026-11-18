@@ -55,11 +55,12 @@ function getEcCategories(): array {
 
 function getToastMap(): array {
     return [
-        'resolved'    => ['✅', 'Incident marked as resolved', 'bg-green-600'],
-        'deleted'     => ['🗑️', 'Incident deleted',            'bg-gray-700'],
-        'user_deleted'=> ['🗑️', 'User deleted',                'bg-gray-700'],
-        'ec_added'    => ['✅', 'Emergency contact added',      'bg-green-600'],
-        'ec_deleted'  => ['🗑️', 'Contact deleted',             'bg-gray-700'],
-        'ec_updated'  => ['🔄', 'Contact updated',             'bg-blue-600'],
+        'resolved'      => ['✅', 'Incident marked as resolved', 'bg-green-600'],
+        'deleted'       => ['🗑️', 'Incident deleted',            'bg-gray-700'],
+        'user_banned'   => ['🚫', 'User banned',                 'bg-gray-700'],
+        'user_unbanned' => ['✅', 'User unbanned',               'bg-green-600'],
+        'ec_added'      => ['✅', 'Emergency contact added',      'bg-green-600'],
+        'ec_deleted'    => ['🗑️', 'Contact deleted',             'bg-gray-700'],
+        'ec_updated'    => ['🔄', 'Contact updated',             'bg-blue-600'],
     ];
 }

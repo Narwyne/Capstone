@@ -23,3 +23,19 @@ try {
 } catch (PDOException $e) {
     $db_error = $e->getMessage();
 }
+
+// Kick out logged-in users who have been banned (takes effect on next request).
+if ($pdo && session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
+    try {
+        $b = $pdo->prepare("SELECT is_banned FROM users WHERE id = ?");
+        $b->execute([$_SESSION['user_id']]);
+        if ((int)$b->fetchColumn() === 1) {
+            session_unset();
+            session_destroy();
+            header("Location: login.php");
+            exit();
+        }
+    } catch (PDOException $e) {
+        // is_banned column missing — run the ALTER TABLE first
+    }
+}

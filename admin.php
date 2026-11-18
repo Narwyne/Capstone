@@ -266,12 +266,14 @@ $toast         = $_GET['toast'] ?? '';
           </tr></thead>
           <tbody id="userTbody">
             <?php foreach ($users as $u): ?>
-            <tr class="user-row border-b border-gray-50 transition"
+            <tr class="user-row border-b border-gray-50 transition <?= $u['is_banned'] ? 'opacity-60' : '' ?>"
               data-name="<?= htmlspecialchars($u['name']) ?>"
               data-email="<?= htmlspecialchars($u['email']??'') ?>"
               data-role="<?= htmlspecialchars($u['role']) ?>">
               <td class="py-3 pl-2 mono text-gray-400">#<?= $u['id'] ?></td>
-              <td class="py-3 font-medium text-gray-700"><?= htmlspecialchars($u['name']) ?></td>
+              <td class="py-3 font-medium text-gray-700"><?= htmlspecialchars($u['name']) ?>
+                <?php if ($u['is_banned']): ?><span class="ml-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">🚫 Banned</span><?php endif; ?>
+              </td>
               <td class="py-3 text-gray-500 text-xs"><?= htmlspecialchars($u['email']??'—') ?></td>
               <td class="py-3">
                 <span class="text-xs font-semibold px-2 py-0.5 rounded-full <?= $u['role']==='admin'?'bg-red-100 text-red-600':'bg-gray-100 text-gray-600' ?>">
@@ -280,11 +282,13 @@ $toast         = $_GET['toast'] ?? '';
               </td>
               <td class="py-3 text-gray-400 text-xs mono"><?= isset($u['created_at'])?date('M d, Y',strtotime($u['created_at'])):'—' ?></td>
               <td class="py-3">
-                <?php if ($u['name'] !== $_SESSION['user']): ?>
-                <form method="POST" onsubmit="return confirm('Delete user <?= htmlspecialchars($u['name']) ?>?')">
-                  <input type="hidden" name="action" value="delete_user">
+                <?php if ((int)$u['id'] !== (int)$_SESSION['user_id']): ?>
+                <form method="POST" onsubmit="return confirm(<?= htmlspecialchars(json_encode(($u['is_banned'] ? 'Unban ' : 'Ban ') . $u['name'] . '?'), ENT_QUOTES) ?>)">
+                  <input type="hidden" name="action" value="<?= $u['is_banned'] ? 'unban_user' : 'ban_user' ?>">
                   <input type="hidden" name="id" value="<?= $u['id'] ?>">
-                  <button type="submit" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1 rounded-lg transition">🗑 Delete</button>
+                  <button type="submit" class="text-xs <?= $u['is_banned'] ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-red-100 hover:bg-red-200 text-red-600' ?> px-3 py-1 rounded-lg transition">
+                    <?= $u['is_banned'] ? '✅ Unban' : '🚫 Ban' ?>
+                  </button>
                 </form>
                 <?php else: ?><span class="text-xs text-gray-300 italic">You</span><?php endif; ?>
               </td>
@@ -297,7 +301,7 @@ $toast         = $_GET['toast'] ?? '';
       <!-- Mobile -->
       <div class="md:hidden space-y-3" id="userCards">
         <?php foreach ($users as $u): ?>
-        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center justify-between"
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center justify-between <?= $u['is_banned'] ? 'opacity-60' : '' ?>"
           data-name="<?= htmlspecialchars($u['name']) ?>"
           data-email="<?= htmlspecialchars($u['email']??'') ?>"
           data-role="<?= htmlspecialchars($u['role']) ?>">
@@ -307,12 +311,15 @@ $toast         = $_GET['toast'] ?? '';
             <span class="inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full <?= $u['role']==='admin'?'bg-red-100 text-red-600':'bg-gray-100 text-gray-600' ?>">
               <?= $u['role']==='admin'?'🛡 Admin':'👤 User' ?>
             </span>
+            <?php if ($u['is_banned']): ?><span class="inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">🚫 Banned</span><?php endif; ?>
           </div>
-          <?php if ($u['name'] !== $_SESSION['user']): ?>
-          <form method="POST" onsubmit="return confirm('Delete <?= htmlspecialchars($u['name']) ?>?')">
-            <input type="hidden" name="action" value="delete_user">
+          <?php if ((int)$u['id'] !== (int)$_SESSION['user_id']): ?>
+          <form method="POST" onsubmit="return confirm(<?= htmlspecialchars(json_encode(($u['is_banned'] ? 'Unban ' : 'Ban ') . $u['name'] . '?'), ENT_QUOTES) ?>)">
+            <input type="hidden" name="action" value="<?= $u['is_banned'] ? 'unban_user' : 'ban_user' ?>">
             <input type="hidden" name="id" value="<?= $u['id'] ?>">
-            <button type="submit" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-3 py-2 rounded-lg font-medium transition">🗑</button>
+            <button type="submit" class="text-xs <?= $u['is_banned'] ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600' ?> px-3 py-2 rounded-lg font-medium transition">
+              <?= $u['is_banned'] ? '✅' : '🚫' ?>
+            </button>
           </form>
           <?php endif; ?>
         </div>

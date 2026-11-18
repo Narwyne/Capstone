@@ -17,7 +17,7 @@ if ($pdo) {
 // ── Users ─────────────────────────────────────────────────────────
 
 $users = $pdo
-    ? $pdo->query("SELECT id, name, email, role, created_at FROM users ORDER BY id DESC")->fetchAll()
+    ? $pdo->query("SELECT id, name, email, role, is_banned, created_at FROM users ORDER BY id DESC")->fetchAll()
     : [];
 
 // ── Incidents ─────────────────────────────────────────────────────

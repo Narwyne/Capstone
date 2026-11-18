@@ -96,7 +96,7 @@ if (isset($_POST['login'])) {
 
         $user = ($result->num_rows === 1) ? $result->fetch_assoc() : null;
 
-        if ($user && password_verify($password, $user['password'])) {
+        if ($user && password_verify($password, $user['password']) && empty($user['is_banned'])) {
 
             // Success: forget failed attempts for this email
             $del = $conn->prepare("DELETE FROM login_attempts WHERE email = ?");
@@ -122,6 +122,10 @@ if (isset($_POST['login'])) {
                 header("Location: dashboard.php");
             }
             exit();
+
+        } elseif ($user && password_verify($password, $user['password'])) {
+            // Correct credentials, but the account is banned
+            $error = "This account has been banned. Please contact the administrator.";
 
         } else {
             // Record the failure (also for unknown emails, so they can't be probed freely)
