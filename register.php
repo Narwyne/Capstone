@@ -166,7 +166,7 @@ $inp = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outli
 
         <label class="flex items-start gap-2 text-[11px] text-gray-500 cursor-pointer pt-1">
           <input type="checkbox" name="terms" required class="accent-[#1c3494] w-3.5 h-3.5 mt-0.5">
-          <span>I agree to the Terms and Privacy Policy, and that my reports may be seen by campus administrators.</span>
+          <a href="privacy.php" onclick="openPrivacy(); return false;" class="text-red-600 underline">Privacy Policy</a>
         </label>
 
         <button name="register"
@@ -229,5 +229,6 @@ function checkMatch() {
   l.style.color = a === b ? '#059669' : '#ef4444';
 }
 </script>
+<?php include 'includes/privacy_modal.php'; ?>
 </body>
 </html>
